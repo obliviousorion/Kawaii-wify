@@ -86,9 +86,6 @@ func Login(client *http.Client, username, password, challengeToken string) (sess
 	if err != nil {
 		return "", err
 	}
-	fmt.Printf("[INFO] Login Status: %d\n", loginResp.StatusCode)
-	fmt.Printf("[INFO] Login Response Body: \n %s\n", loginBody)
-
 	// 1. Extract session token from the keepalive redirect string
 	reSession := regexp.MustCompile(`keepalive\?([a-f0-9]+)`)
 	sessionMatches := reSession.FindStringSubmatch(string(loginBody))
@@ -96,7 +93,6 @@ func Login(client *http.Client, username, password, challengeToken string) (sess
 		return "", fmt.Errorf("[ERROR] Failed to extract session token from login response")
 	}
 	sessionToken = sessionMatches[1]
-	fmt.Printf("[TOKEN] Captured session token: %s\n", sessionToken)
 
 	return sessionToken, nil
 }
