@@ -8,12 +8,10 @@ import (
 	"time"
 )
 
-
 type Config struct {
-	Username 		string `json:"username"`
-	CheckInterval	string `json:"check_interval"`
+	Username      string `json:"username"`
+	CheckInterval string `json:"check_interval"`
 }
-
 
 func Load() (*Config, error) {
 	config := &Config{
@@ -27,7 +25,7 @@ func Load() (*Config, error) {
 
 	configBytes, err := os.ReadFile(configPath)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist){
+		if errors.Is(err, os.ErrNotExist) {
 			return config, nil
 		}
 		return nil, err
@@ -63,15 +61,12 @@ func Save(config *Config) error {
 }
 
 func (c *Config) Interval() time.Duration {
-    d, err := time.ParseDuration(c.CheckInterval)
-    if err != nil || d <= 0 {
-        return 10 * time.Second
-    }
-    return d
+	d, err := time.ParseDuration(c.CheckInterval)
+	if err != nil || d <= 0 {
+		return 10 * time.Second
+	}
+	return d
 }
-
-
-
 
 func configPath() (string, error) {
 	dir, err := os.UserConfigDir()
@@ -79,6 +74,6 @@ func configPath() (string, error) {
 		return "", err
 	}
 
-	pathString := filepath.Join(dir, "kawaii-wifi", "config.json")
+	pathString := filepath.Join(dir, "kawaii-wify", "config.json")
 	return pathString, nil
 }
