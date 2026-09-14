@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/obliviousorion/bits-wlan-manager/internal/auth"
+	"github.com/obliviousorion/kawaii-wify/internal/auth"
 )
 
 const(

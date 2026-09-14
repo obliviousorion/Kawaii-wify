@@ -8,8 +8,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/obliviousorion/bits-wlan-manager/internal/auth"
-	"github.com/obliviousorion/bits-wlan-manager/internal/engine"
+	"github.com/obliviousorion/kawaii-wify/internal/auth"
+	"github.com/obliviousorion/kawaii-wify/internal/engine"
 )	
 
 func main() {

@@ -1,4 +1,4 @@
-module github.com/obliviousorion/bits-wlan-manager
+module github.com/obliviousorion/kawaii-wify
 
 go 1.26.5
 
