@@ -22,7 +22,7 @@ type Engine struct {
 
 }
 
-func NewEngine(client *http.Client, username string, password string) *Engine {
+func New(client *http.Client, username string, password string) *Engine {
 	return &Engine{
 		client: client,
 		username: username,
