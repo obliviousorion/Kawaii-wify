@@ -10,7 +10,10 @@ import (
 	"github.com/obliviousorion/bits-wlan-manager/internal/auth"
 )
 
-const MaxAuthFailures = 3
+const(
+	MaxAuthFailures = 3
+	CooldownDuration = 10 * time.Second 
+)
 
 type Engine struct {
 	client       *http.Client
@@ -21,6 +24,7 @@ type Engine struct {
 	state        State
 	sessionToken string
 	failCount    int
+	cooldownStart time.Time
 }
 
 // Constructor for the Engine
@@ -35,7 +39,7 @@ func New(client *http.Client, username string, password string) *Engine {
 	}
 }
 
-// Main Run 
+// Main Run logic
 
 func (e *Engine) Run(ctx context.Context, interval time.Duration) error {
 
@@ -53,7 +57,6 @@ func (e *Engine) Run(ctx context.Context, interval time.Duration) error {
 		
 		case <- ticker.C:
 			e.Tick()
-
 		}
 	}
 
@@ -63,11 +66,11 @@ func (e *Engine) Run(ctx context.Context, interval time.Duration) error {
 // Main Tick implementation for the Engine
 
 func (e *Engine) Tick() {
-	if e.State() == StateCooldown {
-		log.Printf("[INFO] Engine in cooldown, skipping tick")
-		return
-	}
 
+	if e.inCooldown() {
+        return
+    }
+	
 	isCaptive, magicToken, err := auth.Probe(e.client)
 	if err != nil {
 		log.Printf("[ERROR] Probe failed: %v", err)
@@ -171,6 +174,10 @@ func (e *Engine) transition(next State) {
 	if next == StateOnline {
 		e.failCount = 0
 	}
+
+	if next == StateCooldown {
+		e.cooldownStart = time.Now()
+	}
 }
 
 func (e *Engine) incrementFailures() int {
@@ -180,3 +187,27 @@ func (e *Engine) incrementFailures() int {
 	return e.failCount
 }
 
+
+// inCooldown checks if the circuit breaker is active and self-heals if expired.
+// Returns true if tick should be skipped.
+func (e *Engine) inCooldown() bool {
+    e.mu.Lock()
+    defer e.mu.Unlock()
+
+    if e.state != StateCooldown {
+        return false
+    }
+
+    // Has enough time elapsed?
+    if time.Since(e.cooldownStart) >= CooldownDuration {
+        log.Println("[ENGINE] Cooldown elapsed. Resetting circuit breaker.")
+        e.failCount = 0
+        e.state = StateOffline
+        log.Printf("[STATE] Transition: %s -> %s", StateCooldown, StateOffline)
+        return false // Cooldown is over, let the tick proceed!
+    }
+
+    waitTime := CooldownDuration - time.Since(e.cooldownStart)
+    log.Printf("[INFO] Engine in cooldown. Retrying in %s", waitTime.Round(time.Second))
+    return true // Still in cooldown, skip this tick
+}
