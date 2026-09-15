@@ -10,6 +10,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// written by ai
+
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "View and manage local settings",
