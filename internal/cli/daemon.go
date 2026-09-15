@@ -26,7 +26,7 @@ func runDaemon(cmd *cobra.Command, args []string) {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Printf("[WARN] Failed to load config, using defaults: %v", err)
-		cfg = &config.Config{CheckInterval: "5s"}
+		cfg = &config.Config{CheckInterval: "10s"}
 	}
 
 	targetUser := cfg.Username
