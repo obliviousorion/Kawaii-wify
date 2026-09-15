@@ -41,3 +41,23 @@ func PromptCredentials() (string, string, error) {
 	// this never returns empty strings
 	return username, password, nil
 }
+
+func PromptPassword(username string) (string, error) {
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return "", fmt.Errorf("standard input is not a terminal")
+	}
+
+	fmt.Printf("Enter Password for %s: ", username)
+	passwordBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
+	fmt.Println()
+	if err != nil {
+		return "", err
+	}
+
+	password := string(passwordBytes)
+	if password == "" {
+		return "", fmt.Errorf("password cannot be empty")
+	}
+
+	return password, nil
+}
