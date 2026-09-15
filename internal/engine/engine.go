@@ -85,7 +85,6 @@ func (e *Engine) Tick() {
 			err := auth.Keepalive(e.client, token)
 			if err != nil {
 				log.Printf("[WARN] Keepalive failed: %v", err)
-				e.setSessionToken("")
 				return
 			}
 			log.Printf("[INFO] Keepalive successful")
