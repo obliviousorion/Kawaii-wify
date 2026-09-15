@@ -10,20 +10,20 @@ import (
 	"github.com/obliviousorion/kawaii-wify/internal/auth"
 )
 
-const(
-	MaxAuthFailures = 3
-	CooldownDuration = 10 * time.Second 
+const (
+	MaxAuthFailures  = 3
+	CooldownDuration = 10 * time.Second
 )
 
 type Engine struct {
-	client       *http.Client
-	username     string
-	password     string
+	client   *http.Client
+	username string
+	password string
 
-	mu           sync.RWMutex
-	state        State
-	sessionToken string
-	failCount    int
+	mu            sync.RWMutex
+	state         State
+	sessionToken  string
+	failCount     int
 	cooldownStart time.Time
 }
 
@@ -51,15 +51,14 @@ func (e *Engine) Run(ctx context.Context, interval time.Duration) error {
 
 	for {
 		select {
-		case <- ctx.Done():
+		case <-ctx.Done():
 			log.Printf("[INFO] Shutting down the engine")
 			return ctx.Err()
-		
-		case <- ticker.C:
+
+		case <-ticker.C:
 			e.Tick()
 		}
 	}
-
 
 }
 
@@ -68,9 +67,9 @@ func (e *Engine) Run(ctx context.Context, interval time.Duration) error {
 func (e *Engine) Tick() {
 
 	if e.inCooldown() {
-        return
-    }
-	
+		return
+	}
+
 	isCaptive, magicToken, err := auth.Probe(e.client)
 	if err != nil {
 		log.Printf("[ERROR] Probe failed: %v", err)
@@ -125,8 +124,6 @@ func (e *Engine) Tick() {
 	}
 }
 
-
-
 // Thread-Safe Getters
 
 func (e *Engine) State() State {
@@ -147,7 +144,6 @@ func (e *Engine) SessionToken() string {
 	return e.sessionToken
 }
 
-
 // Mutex Helpers
 
 func (e *Engine) setSessionToken(token string) {
@@ -155,7 +151,6 @@ func (e *Engine) setSessionToken(token string) {
 	defer e.mu.Unlock()
 	e.sessionToken = token
 }
-
 
 // transition safely updates the engine state and handles entry actions.
 func (e *Engine) transition(next State) {
@@ -186,27 +181,26 @@ func (e *Engine) incrementFailures() int {
 	return e.failCount
 }
 
-
 // inCooldown checks if the circuit breaker is active and self-heals if expired.
 // Returns true if tick should be skipped.
 func (e *Engine) inCooldown() bool {
-    e.mu.Lock()
-    defer e.mu.Unlock()
+	e.mu.Lock()
+	defer e.mu.Unlock()
 
-    if e.state != StateCooldown {
-        return false
-    }
+	if e.state != StateCooldown {
+		return false
+	}
 
-    // Has enough time elapsed?
-    if time.Since(e.cooldownStart) >= CooldownDuration {
-        log.Println("[ENGINE] Cooldown elapsed. Resetting circuit breaker.")
-        e.failCount = 0
-        e.state = StateOffline
-        log.Printf("[STATE] Transition: %s -> %s", StateCooldown, StateOffline)
-        return false // Cooldown is over, let the tick proceed!
-    }
+	// Has enough time elapsed?
+	if time.Since(e.cooldownStart) >= CooldownDuration {
+		log.Println("[ENGINE] Cooldown elapsed. Resetting circuit breaker.")
+		e.failCount = 0
+		e.state = StateOffline
+		log.Printf("[STATE] Transition: %s -> %s", StateCooldown, StateOffline)
+		return false // Cooldown is over, let the tick proceed!
+	}
 
-    waitTime := CooldownDuration - time.Since(e.cooldownStart)
-    log.Printf("[INFO] Engine in cooldown. Retrying in %s", waitTime.Round(time.Second))
-    return true // Still in cooldown, skip this tick
+	waitTime := CooldownDuration - time.Since(e.cooldownStart)
+	log.Printf("[INFO] Engine in cooldown. Retrying in %s", waitTime.Round(time.Second))
+	return true // Still in cooldown, skip this tick
 }
