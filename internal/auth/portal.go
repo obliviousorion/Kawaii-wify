@@ -90,7 +90,7 @@ func Login(client *http.Client, username, password, challengeToken string) (sess
 	reSession := regexp.MustCompile(`keepalive\?([a-f0-9]+)`)
 	sessionMatches := reSession.FindStringSubmatch(string(loginBody))
 	if len(sessionMatches) < 2 {
-		return "", fmt.Errorf("[ERROR] Failed to extract session token from login response")
+		return "", fmt.Errorf("[ERROR] authentication failed: invalid credentials or session rejected (no keepalive token in response)")
 	}
 	sessionToken = sessionMatches[1]
 
@@ -111,7 +111,7 @@ func Logout(client *http.Client, sessionToken string) error {
 		return err
 	}
 	defer logoutResp.Body.Close()
-	
+
 	if logoutResp.StatusCode != 200 {
 		return fmt.Errorf("logout failed with status code: %d", logoutResp.StatusCode)
 	}
