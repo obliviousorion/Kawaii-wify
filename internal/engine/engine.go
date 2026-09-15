@@ -99,9 +99,12 @@ func (e *Engine) Tick() {
 			return
 		}
 
+		// Priming is an unauthenticated gateway session handshake. We do not count
+		// priming errors toward auth failure limits (which exist to prevent LDAP
+		// account lockout) so transient network glitches can recover on the next tick.
 		err := auth.Prime(e.client, magicToken)
 		if err != nil {
-			log.Printf("[ERROR] Priming Failed, Retrying on next Tick: %v", err)
+			log.Printf("[WARN] Gateway priming failed, will retry on next tick: %v", err)
 			return
 		}
 		sessionToken, err := auth.Login(e.client, e.username, e.password, magicToken)
