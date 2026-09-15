@@ -36,13 +36,27 @@ func Resolve(explicitUser string) (string, string, error) {
 	}
 
 	// 4. Fallback to interactive prompt
-	user, pass, err := PromptCredentials()
-	if err != nil {
-		return "", "", err
+	var (
+		user string
+		pass string
+		err  error
+	)
+	if targetUser != "" {
+		user = targetUser
+		pass, err = PromptPassword(user)
+		if err != nil {
+			return "", "", err
+		}
+	} else {
+		user, pass, err = PromptCredentials()
+		if err != nil {
+			return "", "", err
+		}
 	}
+
 	err = Set(user, pass)
 	if err != nil {
-		log.Printf("[WARN] Failed to save credentials to system keyring: %v", err)
+		log.Printf("[WARN] Failed to save credentials to OS keyring: %v", err)
 	}
 	return user, pass, nil
 }
