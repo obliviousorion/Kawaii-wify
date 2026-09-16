@@ -8,7 +8,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var loginUser string
+var (
+	loginUser string
+	loginPass string
+)
 
 var loginCmd = &cobra.Command{
 	Use:   "login",
@@ -24,13 +27,24 @@ func runLogin(cmd *cobra.Command, args []string) {
 
 	if loginUser != "" {
 		user = loginUser
-		pass, err = credentials.PromptPassword(user)
+		if loginPass != "" {
+			pass = loginPass
+		} else {
+			pass, err = credentials.PromptPassword(user)
+		}
 	} else {
 		user, pass, err = credentials.PromptCredentials()
+		if loginPass != "" {
+			pass = loginPass
+		}
 	}
 
 	if err != nil {
 		log.Fatalf("[ERROR] Input Error: %v", err)
+	}
+
+	if user == "" || pass == "" {
+		log.Fatalf("[ERROR] Input Error: username and password cannot be empty")
 	}
 
 	if err := credentials.Set(user, pass); err != nil {
@@ -41,7 +55,7 @@ func runLogin(cmd *cobra.Command, args []string) {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Printf("[WARN] Could not load existing config, creating fresh: %v", err)
-		cfg = &config.Config{CheckInterval: "10s"}
+		cfg = config.Default()
 	}
 
 	cfg.Username = user
@@ -54,5 +68,6 @@ func runLogin(cmd *cobra.Command, args []string) {
 
 func init() {
 	loginCmd.Flags().StringVarP(&loginUser, "user", "u", "", "Set or override kawaii-wify username")
+	loginCmd.Flags().StringVarP(&loginPass, "password", "p", "", "Set kawaii-wify password directly (non-interactive)")
 	rootCmd.AddCommand(loginCmd)
 }
