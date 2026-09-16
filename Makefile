@@ -16,12 +16,6 @@ endif
 # Target binary for the current host OS
 CURRENT_BIN = bin/debug/$(BINARY_NAME)-$(HOST_OS)$(EXT)
 
-# Support trailing arguments for run (e.g. make run -- -u username)
-ifeq (run,$(firstword $(MAKECMDGOALS)))
-RUN_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
-$(eval $(RUN_ARGS):;@:)
-endif
-
 .PHONY: all build run clean \
         build-linux build-linux-release \
         build-windows build-windows-release
@@ -32,9 +26,9 @@ all: build
 build:
 	@go build -o "$(CURRENT_BIN)" ./cmd/kawaii-wify
 
-# Automatically builds and runs for current OS with flags support
+# Automatically builds and runs for current OS with flags support (e.g. make run ARGS="...")
 run: build
-	@$(RUN_PREFIX)$(CURRENT_BIN) $(or $(ARGS),$(RUN_ARGS))
+	@$(RUN_PREFIX)$(CURRENT_BIN) $(ARGS)
 
 # --- Linux Targets ---
 build-linux-release:
