@@ -12,7 +12,7 @@ Campus Wi-Fi networks secured by FortiGate firewalls require users to authentica
 - **Probes WAN Connectivity**: Checks reachability using lightweight HTTP `204 No Content` probes.
 - **Captive Portal Interception**: Detects captive portal redirection and extracts the dynamic challenge token (`fgtauth?<token>`) from the firewall HTML payload.
 - **Atomic Authentication Sequence**: Primes the FortiOS session state, enforces HTTP/1.1 over TLS with pinned referers, and retrieves dynamic session keepalive tokens.
-- **Active Keepalive Ping**: Periodically pings the firewall keepalive endpoint (`/keepalive?<token>`) to prevent idle lease timeouts.
+- **Configurable Keepalive Ping**: Periodically pings the firewall keepalive endpoint (`/keepalive?<token>`) to prevent idle lease timeouts, or can be toggled off to rely purely on automatic re-login on disconnect.
 - **Circuit Breaker & Cooldown**: Protects against firewall bans and account lockouts by halting login attempts after consecutive failures and self-healing.
 - **Persistent Configuration**: Automatically manages user settings (such as default username and polling intervals) in a local config file.
 - **Secure Credential Storage**: Leverages OS Keyrings (Linux Secret Service/D-Bus, macOS Keychain, Windows Credential Manager) and masked interactive prompts so passwords are never stored in plaintext.
@@ -95,9 +95,11 @@ The core `Engine` operates as a thread-safe finite state machine:
 
 ## Configuration
 
-Kawaii-Wify supports persistent user configuration stored in your user configuration directory (per the XDG Base Directory specification on Linux):
+Kawaii-Wify supports persistent user configuration stored in your standard user configuration directory:
 
-- **Default Location**: `~/.config/kawaii-wify/config.json`
+- **Linux**: `~/.config/kawaii-wify/config.json`
+- **Windows**: `%APPDATA%\kawaii-wify\config.json`
+- **macOS**: `~/Library/Application Support/kawaii-wify/config.json`
 - **File Permissions**: Restricted to `0600` (read/write only by user)
 
 ### Configuration Schema
@@ -105,7 +107,8 @@ Kawaii-Wify supports persistent user configuration stored in your user configura
 ```json
 {
   "username": "F20230814",
-  "check_interval": "10s"
+  "check_interval": "10s",
+  "keepalive": true
 }
 ```
 
@@ -113,6 +116,7 @@ Kawaii-Wify supports persistent user configuration stored in your user configura
 |---|---|---|---|
 | `username` | string | `""` | Active student ID / campus login ID. Automatically saved on login/override. |
 | `check_interval` | string | `"10s"` | Frequency of probe and keepalive checks (parsed as a Go duration, e.g. `"5s"`, `"10s"`, `"1m"`). |
+| `keepalive` | bool | `true` | When enabled, sends periodic keepalive pings while online. When disabled, relies purely on automatic re-login upon connection drops. |
 
 ---
 
@@ -120,11 +124,11 @@ Kawaii-Wify supports persistent user configuration stored in your user configura
 
 Credentials are resolved using a cascading hierarchy:
 
-1. **Explicit CLI Flag**: The `-u <username>` flag always takes highest precedence.
+1. **Explicit CLI Flags**: `-u <username>` and `-p <password>` take highest precedence during login.
 2. **Environment Variables**: `KAWAII_USER` and `KAWAII_PASS` (ideal for headless scripts or containers).
-3. **Persistent Config File**: If no flag is given, the username is loaded from `~/.config/kawaii-wify/config.json`.
-4. **System Keyring**: Using the resolved target username, Kawaii-Wify queries the OS Keyring (`gnome-keyring`, macOS Keychain, Windows Credential Manager).
-5. **Interactive Terminal Prompt**: If credentials are missing, Kawaii-Wify prompts for missing information using masked TTY inputs. If the username is already known, it prompts only for the password (`PromptPassword`). Newly entered credentials are saved to the OS Keyring.
+3. **Persistent Config File**: If no flag is given, the active username is loaded from `config.json`.
+4. **System Keyring**: Using the resolved target username, Kawaii-Wify queries the OS Keyring (Linux Secret Service/D-Bus, macOS Keychain, Windows Credential Manager).
+5. **Interactive Terminal Prompt**: If credentials are missing, Kawaii-Wify prompts for missing information using masked TTY inputs. If the username is already known, it prompts only for the password (`PromptPassword`). Newly entered credentials are automatically saved to the OS Keyring.
 
 ---
 
@@ -204,25 +208,36 @@ FortiGate's embedded port 8090 web server has specific network quirks:
 
 ## Building
 
-A `Makefile` is provided for common development and production tasks:
+A cross-platform `Makefile` is provided for common development and production tasks:
 
 ```bash
-# Compile debug build (bin/debug/kawaii-wify-linux)
-make build-linux
+# Automatically build for your current host OS (Windows, Linux, or macOS)
+make
 
-# Compile stripped release build (bin/release/kawaii-wify-linux_0.1.0)
-make build-linux-release
+# Automatically build and run for current host OS with optional flags
+make run ARGS="daemon"
+make run ARGS='login -u F20230814 -p "MyPassword#"'
 
-# Build and execute debug binary
-make run
+# Compile release binaries for all platforms (Linux, Windows, macOS)
+make build-all
 
-# Clean build artifacts
+# Platform-specific builds (debug / stripped release)
+make build-windows          # bin/debug/kawaii-wify-windows.exe
+make build-windows-release  # bin/release/kawaii-wify-windows_0.1.0.exe
+make build-linux            # bin/debug/kawaii-wify-linux
+make build-linux-release    # bin/release/kawaii-wify-linux_0.1.0
+make build-darwin           # bin/debug/kawaii-wify-darwin
+make build-darwin-release   # bin/release/kawaii-wify-darwin_0.1.0
+
+# Cross-platform cleanup of build artifacts
 make clean
 ```
 
 ---
 
-## Running as a Systemd User Service
+## Running in the Background
+
+### Linux: Systemd User Service
 
 You can run Kawaii-Wify as a background service managed by `systemd`:
 
@@ -257,6 +272,28 @@ You can run Kawaii-Wify as a background service managed by `systemd`:
 4. Inspect live logs:
    ```bash
    journalctl --user -u kawaii-wify.service -f
+   ```
+
+### Windows: Task Scheduler
+
+Run Kawaii-Wify silently in the background whenever you log into Windows:
+
+1. Install the binary globally:
+   ```powershell
+   go install ./cmd/kawaii-wify
+   ```
+
+2. Register the scheduled task (PowerShell):
+   ```powershell
+   $action = New-ScheduledTaskAction -Execute "$env:USERPROFILE\go\bin\kawaii-wify.exe" -Argument "daemon"
+   $trigger = New-ScheduledTaskTrigger -AtLogOn
+   Register-ScheduledTask -TaskName "KawaiiWify" -Action $action -Trigger $trigger -Description "FortiGate WLAN Session Manager"
+   ```
+
+3. Start or stop the service at any time:
+   ```powershell
+   Start-ScheduledTask -TaskName "KawaiiWify"
+   Stop-ScheduledTask -TaskName "KawaiiWify"
    ```
 
 ---
