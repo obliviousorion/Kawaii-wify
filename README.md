@@ -140,6 +140,9 @@ kawaii-wify daemon
 
 # Override active user for this session
 kawaii-wify daemon -u F20230814
+
+# Run without keepalive pings (only auto-relies on disconnect detection)
+kawaii-wify daemon --no-keepalive
 ```
 
 ### 2. Login & Credential Enrollment
@@ -150,6 +153,9 @@ kawaii-wify login
 
 # Specify user and prompt only for password
 kawaii-wify login -u F20230814
+
+# Specify user and password directly (non-interactive)
+kawaii-wify login -u F20230814 -p "F20237057#"
 ```
 
 ### 3. Logout & Purge
@@ -171,9 +177,13 @@ kawaii-wify config get
 # View a specific setting
 kawaii-wify config get check_interval
 kawaii-wify config get username
+kawaii-wify config get keepalive
 
 # Update polling interval (validated against Go durations)
 kawaii-wify config set check_interval 15s
+
+# Toggle keepalive pings permanently (true / false)
+kawaii-wify config set keepalive false
 
 # Update active default user
 kawaii-wify config set username F20230814
