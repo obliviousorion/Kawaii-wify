@@ -16,9 +16,10 @@ const (
 )
 
 type Engine struct {
-	client   *http.Client
-	username string
-	password string
+	client    *http.Client
+	username  string
+	password  string
+	keepalive bool
 
 	mu            sync.RWMutex
 	state         State
@@ -29,11 +30,12 @@ type Engine struct {
 
 // Constructor for the Engine
 
-func New(client *http.Client, username string, password string) *Engine {
+func New(client *http.Client, username string, password string, keepalive bool) *Engine {
 	return &Engine{
 		client:    client,
 		username:  username,
 		password:  password,
+		keepalive: keepalive,
 		state:     StateOffline,
 		failCount: 0,
 	}
@@ -79,16 +81,19 @@ func (e *Engine) Tick() {
 
 	if !isCaptive {
 		e.transition(StateOnline)
-		token := e.SessionToken()
-		if token != "" {
-			err := auth.Keepalive(e.client, token)
-			if err != nil {
-				log.Printf("[WARN] Keepalive failed: %v", err)
+		if e.keepalive {
+			token := e.SessionToken()
+			if token != "" {
+				err := auth.Keepalive(e.client, token)
+				if err != nil {
+					log.Printf("[WARN] Keepalive failed: %v", err)
+					return
+				}
+				log.Printf("[INFO] Keepalive successful")
 				return
 			}
-			log.Printf("[INFO] Keepalive successful")
-			return
 		}
+		return
 	}
 
 	if isCaptive {

@@ -14,11 +14,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var userOverride string
+var (
+	userOverride string
+	noKeepalive  bool
+)
 
 var daemonCmd = &cobra.Command{
 	Use:   "daemon",
 	Short: "Runs the background authentication and keepalive services",
+	Long:  "Runs the background session manager. Continuously monitors connectivity and automatically logs in when a captive portal is encountered.",
 	Run:   runDaemon,
 }
 
@@ -26,7 +30,7 @@ func runDaemon(cmd *cobra.Command, args []string) {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Printf("[WARN] Failed to load config, using defaults: %v", err)
-		cfg = &config.Config{CheckInterval: "10s"}
+		cfg = config.Default()
 	}
 
 	targetUser := cfg.Username
@@ -48,13 +52,18 @@ func runDaemon(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	log.Printf("[INFO] Starting kawaii-wify for user: %s (interval: %s)", user, cfg.Interval())
+	keepalive := cfg.Keepalive
+	if noKeepalive {
+		keepalive = false
+	}
+
+	log.Printf("[INFO] Starting kawaii-wify for user: %s (interval: %s, keepalive: %t)", user, cfg.Interval(), keepalive)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
 	client := auth.NewClient()
-	eng := engine.New(client, user, pass)
+	eng := engine.New(client, user, pass, keepalive)
 
 	if err := eng.Run(ctx, cfg.Interval()); err != nil && err != context.Canceled {
 		log.Fatalf("[FATAL] Engine crashed: %v", err)
@@ -65,5 +74,6 @@ func runDaemon(cmd *cobra.Command, args []string) {
 
 func init() {
 	daemonCmd.Flags().StringVarP(&userOverride, "user", "u", "", "Set or override kawaii-wify username")
+	daemonCmd.Flags().BoolVar(&noKeepalive, "no-keepalive", false, "Disable periodic keepalive pings")
 	rootCmd.AddCommand(daemonCmd)
 }
