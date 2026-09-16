@@ -2,18 +2,53 @@ BINARY_NAME=kawaii-wify
 VERSION=0.1.0
 LDFLAGS=-s -w -X main.Version=$(VERSION)
 
-.PHONY: build-linux-release build-linux run clean
+# Detect Host OS and set binary extension
+ifeq ($(OS),Windows_NT)
+HOST_OS ?= windows
+EXT = .exe
+RUN_PREFIX =
+else
+HOST_OS ?= $(shell go env GOOS 2>/dev/null || uname -s | tr '[:upper:]' '[:lower:]')
+EXT =
+RUN_PREFIX = ./
+endif
 
-build-linux-release: # release build
+# Target binary for the current host OS
+CURRENT_BIN = bin/debug/$(BINARY_NAME)-$(HOST_OS)$(EXT)
+
+# Support trailing arguments for run (e.g. make run -- -u username)
+ifeq (run,$(firstword $(MAKECMDGOALS)))
+RUN_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
+$(eval $(RUN_ARGS):;@:)
+endif
+
+.PHONY: all build run clean \
+        build-linux build-linux-release \
+        build-windows build-windows-release
+
+all: build
+
+# Automatically builds for your current OS
+build:
+	@go build -o "$(CURRENT_BIN)" ./cmd/kawaii-wify
+
+# Automatically builds and runs for current OS with flags support
+run: build
+	@$(RUN_PREFIX)$(CURRENT_BIN) $(or $(ARGS),$(RUN_ARGS))
+
+# --- Linux Targets ---
+build-linux-release:
 	@GOOS=linux GOARCH=amd64 go build -ldflags="$(LDFLAGS)" -o "bin/release/$(BINARY_NAME)-linux_$(VERSION)" ./cmd/kawaii-wify
 
-build-linux: # default is debug build
+build-linux:
 	@GOOS=linux GOARCH=amd64 go build -o "bin/debug/$(BINARY_NAME)-linux" ./cmd/kawaii-wify
 
-run: build-linux # builds and runs the binary
-	@./bin/debug/$(BINARY_NAME)-linux
+# --- Windows Targets ---
+build-windows-release:
+	@GOOS=windows GOARCH=amd64 go build -ldflags="$(LDFLAGS)" -o "bin/release/$(BINARY_NAME)-windows_$(VERSION).exe" ./cmd/kawaii-wify
+
+build-windows:
+	@GOOS=windows GOARCH=amd64 go build -o "bin/debug/$(BINARY_NAME)-windows.exe" ./cmd/kawaii-wify
 
 clean:
 	@rm -rf bin/
-
-
