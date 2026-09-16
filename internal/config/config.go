@@ -11,12 +11,18 @@ import (
 type Config struct {
 	Username      string `json:"username"`
 	CheckInterval string `json:"check_interval"`
+	Keepalive     bool   `json:"keepalive"`
+}
+
+func Default() *Config {
+	return &Config{
+		CheckInterval: "10s",
+		Keepalive:     true,
+	}
 }
 
 func Load() (*Config, error) {
-	config := &Config{
-		CheckInterval: "10s",
-	}
+	config := Default()
 
 	configPath, err := configPath()
 	if err != nil {

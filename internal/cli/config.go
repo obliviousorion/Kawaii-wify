@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,7 +16,7 @@ import (
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "View and manage local settings",
-	Long:  "View and update non-sensitive configuration settings such as check interval and default username.",
+	Long:  "View and update non-sensitive configuration settings such as check interval, keepalive, and default username.",
 }
 
 var configGetCmd = &cobra.Command{
@@ -36,12 +37,13 @@ func runConfigGet(cmd *cobra.Command, args []string) {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Printf("[WARN] Failed to load config, showing defaults: %v", err)
-		cfg = &config.Config{CheckInterval: "10s"}
+		cfg = config.Default()
 	}
 
 	if len(args) == 0 {
 		fmt.Printf("username: %s\n", cfg.Username)
 		fmt.Printf("check_interval: %s\n", cfg.CheckInterval)
+		fmt.Printf("keepalive: %t\n", cfg.Keepalive)
 		return
 	}
 
@@ -51,8 +53,10 @@ func runConfigGet(cmd *cobra.Command, args []string) {
 		fmt.Println(cfg.Username)
 	case "check_interval", "interval":
 		fmt.Println(cfg.CheckInterval)
+	case "keepalive":
+		fmt.Println(cfg.Keepalive)
 	default:
-		log.Fatalf("[ERROR] Unknown configuration key '%s'. Supported keys: username, check_interval", args[0])
+		log.Fatalf("[ERROR] Unknown configuration key '%s'. Supported keys: username, check_interval, keepalive", args[0])
 	}
 }
 
@@ -60,7 +64,7 @@ func runConfigSet(cmd *cobra.Command, args []string) {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Printf("[WARN] Failed to load config, initializing fresh: %v", err)
-		cfg = &config.Config{CheckInterval: "10s"}
+		cfg = config.Default()
 	}
 
 	key := strings.ToLower(args[0])
@@ -76,8 +80,14 @@ func runConfigSet(cmd *cobra.Command, args []string) {
 	case "username":
 		cfg.Username = val
 		log.Printf("[INFO] Updated default user to %s. Ensure credentials are saved via 'kawaii-wify login'.", val)
+	case "keepalive":
+		b, err := strconv.ParseBool(val)
+		if err != nil {
+			log.Fatalf("[ERROR] Invalid boolean value '%s'. Use 'true' or 'false'.", val)
+		}
+		cfg.Keepalive = b
 	default:
-		log.Fatalf("[ERROR] Unknown configuration key '%s'. Supported keys: username, check_interval", args[0])
+		log.Fatalf("[ERROR] Unknown configuration key '%s'. Supported keys: username, check_interval, keepalive", args[0])
 	}
 
 	if err := config.Save(cfg); err != nil {
