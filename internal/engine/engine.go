@@ -17,6 +17,13 @@ const (
 	CooldownDuration = 10 * time.Second
 )
 
+var (
+	ErrCooldown          = errors.New("circuit breaker active: engine in cooldown")
+	ErrMaxAuthFailures   = errors.New("maximum auth failures reached, cooldown active")
+	ErrTimeout           = errors.New("connection attempt timed out")
+	ErrAlreadyInProgress = errors.New("connection attempt already in progress")
+)
+
 type Engine struct {
 	client    *http.Client
 	username  string
@@ -56,7 +63,7 @@ func New(client *http.Client, username string, password string, keepalive bool) 
 func (e *Engine) Run(ctx context.Context, interval time.Duration) error {
 
 	// execute a tick immediately
-	e.Tick()
+	e.tick(ctx)
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -68,11 +75,11 @@ func (e *Engine) Run(ctx context.Context, interval time.Duration) error {
 			return ctx.Err()
 
 		case <-ticker.C:
-			e.Tick()
+			e.tick(ctx)
 
 		case respChan := <- e.triggerChan:
 			log.Printf("[INFO] Check triggered by IPC protocol")
-			err := e.Tick()
+			err := e.tick(ctx)
 			if respChan != nil {
 				respChan <- err
 			}
@@ -82,7 +89,7 @@ func (e *Engine) Run(ctx context.Context, interval time.Duration) error {
 }
 
 // Main Tick implementation for the Engine
-func (e *Engine) Tick() error {
+func (e *Engine) tick(ctx context.Context) error {
     e.updateLastProbe()
 
     if e.IsPaused() {
@@ -90,10 +97,10 @@ func (e *Engine) Tick() error {
     }
 
     if e.inCooldown() {
-        return errors.New("circuit breaker active: engine in cooldown")
+        return ErrCooldown
     }
 
-    isCaptive, magicToken, err := auth.Probe(e.client)
+    isCaptive, magicToken, err := auth.Probe(ctx, e.client)
     if err != nil {
         log.Printf("[ERROR] Probe failed: %v", err)
         e.transition(StateOffline)
@@ -105,7 +112,7 @@ func (e *Engine) Tick() error {
         if e.keepalive {
             token := e.SessionToken()
             if token != "" {
-                if err := auth.Keepalive(e.client, token); err != nil {
+                if err := auth.Keepalive(ctx, e.client, token); err != nil {
                     log.Printf("[WARN] Keepalive failed: %v", err)
                     return err
                 }
@@ -120,15 +127,15 @@ func (e *Engine) Tick() error {
 
         if e.FailureCount() >= MaxAuthFailures {
             e.transition(StateCooldown)
-            return errors.New("maximum auth failures reached, cooldown active")
+            return ErrMaxAuthFailures
         }
 
-        if err := auth.Prime(e.client, magicToken); err != nil {
+        if err := auth.Prime(ctx, e.client, magicToken); err != nil {
             log.Printf("[WARN] Gateway priming failed, will retry on next tick: %v", err)
             return err
         }
 
-        sessionToken, err := auth.Login(e.client, e.username, e.password, magicToken)
+        sessionToken, err := auth.Login(ctx, e.client, e.username, e.password, magicToken)
         if err != nil {
             currentFails := e.incrementFailures()
             log.Printf("[ERROR] Login failed (attempt %d/%d): %v", currentFails, MaxAuthFailures, err)
@@ -153,7 +160,7 @@ func (e *Engine) Connect(timeout time.Duration) error {
     e.paused = false
     e.failCount = 0
     if e.state == StateCooldown {
-        e.state = StateOffline
+        e.transitionLocked(StateOffline)
     }
     e.mu.Unlock()
 
@@ -165,10 +172,10 @@ func (e *Engine) Connect(timeout time.Duration) error {
         case err := <-respChan:
             return err
         case <-time.After(timeout):
-            return errors.New("connection attempt timed out")
+            return ErrTimeout
         }
     default:
-        return errors.New("connection attempt already in progress")
+        return ErrAlreadyInProgress
     }
 }
 
@@ -176,9 +183,9 @@ func (e *Engine) Disconnect() {
 	e.mu.Lock()
 	e.paused = true
 	e.sessionToken = ""
+	e.transitionLocked(StateOffline)
 	e.mu.Unlock()
 
-	e.transition(StateOffline)
 	log.Printf("[INFO] Disconnected and Engine paused by user command")
 }
 
@@ -251,7 +258,10 @@ func (e *Engine) setSessionToken(token string) {
 func (e *Engine) transition(next State) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	e.transitionLocked(next)
+}
 
+func (e *Engine) transitionLocked(next State) {
 	if e.state == next {
 		return
 	}
@@ -290,8 +300,7 @@ func (e *Engine) inCooldown() bool {
 	if time.Since(e.cooldownStart) >= CooldownDuration {
 		log.Println("[ENGINE] Cooldown elapsed. Resetting circuit breaker.")
 		e.failCount = 0
-		e.state = StateOffline
-		log.Printf("[STATE] Transition: %s -> %s", StateCooldown, StateOffline)
+		e.transitionLocked(StateOffline)
 		return false // Cooldown is over, let the tick proceed!
 	}
 

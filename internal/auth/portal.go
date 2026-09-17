@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,9 +13,13 @@ import (
 // Probe checks whether we have WAN access or are trapped in a captive portal.
 // Returns isCaptive = true and challengeToken if intercepted.
 // Returns isCaptive = false and token = "" if already online (204).
-func Probe(client *http.Client) (isCaptive bool, challengeToken string, err error) {
+func Probe(ctx context.Context, client *http.Client) (isCaptive bool, challengeToken string, err error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", "http://connectivitycheck.gstatic.com/generate_204", nil)
+	if err != nil {
+		return false, "", err
+	}
 
-	resp, err := client.Get("http://connectivitycheck.gstatic.com/generate_204")
+	resp, err := client.Do(req)
 	if err != nil {
 		return false, "", err
 	}
@@ -40,10 +45,10 @@ func Probe(client *http.Client) (isCaptive bool, challengeToken string, err erro
 }
 
 // Prime registers the challenge session on FortiOS.
-func Prime(client *http.Client, challengeToken string) error {
+func Prime(ctx context.Context, client *http.Client, challengeToken string) error {
 	primeUrl := fmt.Sprintf("https://fw.bits-pilani.ac.in:8090/fgtauth?%s", challengeToken)
 
-	req, err := http.NewRequest("GET", primeUrl, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", primeUrl, nil)
 	if err != nil {
 		return err
 	}
@@ -58,7 +63,7 @@ func Prime(client *http.Client, challengeToken string) error {
 }
 
 // Login posts the credentials and returns the authenticated session token.
-func Login(client *http.Client, username, password, challengeToken string) (sessionToken string, err error) {
+func Login(ctx context.Context, client *http.Client, username, password, challengeToken string) (sessionToken string, err error) {
 	formData := url.Values{}
 	formData.Set("4Tredir", "http://connectivitycheck.gstatic.com/generate_204")
 	formData.Set("magic", challengeToken)
@@ -66,7 +71,7 @@ func Login(client *http.Client, username, password, challengeToken string) (sess
 	formData.Set("password", password)
 
 	loginUrl := "https://fw.bits-pilani.ac.in:8090/"
-	loginReq, err := http.NewRequest("POST", loginUrl, strings.NewReader(formData.Encode()))
+	loginReq, err := http.NewRequestWithContext(ctx, "POST", loginUrl, strings.NewReader(formData.Encode()))
 	if err != nil {
 		return "", err
 	}
@@ -98,9 +103,9 @@ func Login(client *http.Client, username, password, challengeToken string) (sess
 }
 
 // Logout terminates the session on the gateway.
-func Logout(client *http.Client, sessionToken string) error {
+func Logout(ctx context.Context, client *http.Client, sessionToken string) error {
 	logoutURL := fmt.Sprintf("https://fw.bits-pilani.ac.in:8090/logout?%s", sessionToken)
-	logoutReq, err := http.NewRequest("GET", logoutURL, nil)
+	logoutReq, err := http.NewRequestWithContext(ctx, "GET", logoutURL, nil)
 	if err != nil {
 		return err
 	}
@@ -120,9 +125,9 @@ func Logout(client *http.Client, sessionToken string) error {
 }
 
 // Keepalive pings the gateway to maintain an active lease.
-func Keepalive(client *http.Client, sessionToken string) error {
+func Keepalive(ctx context.Context, client *http.Client, sessionToken string) error {
 	keepaliveURL := fmt.Sprintf("https://fw.bits-pilani.ac.in:8090/keepalive?%s", sessionToken)
-	req, err := http.NewRequest("GET", keepaliveURL, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", keepaliveURL, nil)
 	if err != nil {
 		return err
 	}
