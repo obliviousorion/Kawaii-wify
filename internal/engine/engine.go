@@ -2,6 +2,8 @@ package engine
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"sync"
@@ -21,11 +23,17 @@ type Engine struct {
 	password  string
 	keepalive bool
 
+	triggerChan	  chan chan error
+	startTime	time.Time
+	lastProbe	time.Time
+	paused		bool
+	
 	mu            sync.RWMutex
 	state         State
 	sessionToken  string
 	failCount     int
 	cooldownStart time.Time
+	
 }
 
 // Constructor for the Engine
@@ -38,6 +46,8 @@ func New(client *http.Client, username string, password string, keepalive bool) 
 		keepalive: keepalive,
 		state:     StateOffline,
 		failCount: 0,
+		triggerChan: make(chan chan error, 1),
+		startTime: time.Now(),
 	}
 }
 
@@ -59,78 +69,146 @@ func (e *Engine) Run(ctx context.Context, interval time.Duration) error {
 
 		case <-ticker.C:
 			e.Tick()
+
+		case respChan := <- e.triggerChan:
+			log.Printf("[INFO] Check triggered by IPC protocol")
+			err := e.Tick()
+			if respChan != nil {
+				respChan <- err
+			}
 		}
 	}
 
 }
 
 // Main Tick implementation for the Engine
+func (e *Engine) Tick() error {
+    e.updateLastProbe()
 
-func (e *Engine) Tick() {
+    if e.IsPaused() {
+        return nil
+    }
 
-	if e.inCooldown() {
-		return
-	}
+    if e.inCooldown() {
+        return errors.New("circuit breaker active: engine in cooldown")
+    }
 
-	isCaptive, magicToken, err := auth.Probe(e.client)
-	if err != nil {
-		log.Printf("[ERROR] Probe failed: %v", err)
-		e.transition(StateOffline)
-		return
-	}
+    isCaptive, magicToken, err := auth.Probe(e.client)
+    if err != nil {
+        log.Printf("[ERROR] Probe failed: %v", err)
+        e.transition(StateOffline)
+        return fmt.Errorf("probe failed: %w", err)
+    }
 
-	if !isCaptive {
-		e.transition(StateOnline)
-		if e.keepalive {
-			token := e.SessionToken()
-			if token != "" {
-				err := auth.Keepalive(e.client, token)
-				if err != nil {
-					log.Printf("[WARN] Keepalive failed: %v", err)
-					return
-				}
-				log.Printf("[INFO] Keepalive successful")
-				return
-			}
-		}
-		return
-	}
+    if !isCaptive {
+        e.transition(StateOnline)
+        if e.keepalive {
+            token := e.SessionToken()
+            if token != "" {
+                if err := auth.Keepalive(e.client, token); err != nil {
+                    log.Printf("[WARN] Keepalive failed: %v", err)
+                    return err
+                }
+                log.Printf("[INFO] Keepalive successful")
+            }
+        }
+        return nil
+    }
 
-	if isCaptive {
-		e.transition(StateCaptive)
+    if isCaptive {
+        e.transition(StateCaptive)
 
-		if e.FailureCount() >= MaxAuthFailures {
-			e.transition(StateCooldown)
-			return
-		}
+        if e.FailureCount() >= MaxAuthFailures {
+            e.transition(StateCooldown)
+            return errors.New("maximum auth failures reached, cooldown active")
+        }
 
-		// Priming is an unauthenticated gateway session handshake. We do not count
-		// priming errors toward auth failure limits (which exist to prevent LDAP
-		// account lockout) so transient network glitches can recover on the next tick.
-		err := auth.Prime(e.client, magicToken)
-		if err != nil {
-			log.Printf("[WARN] Gateway priming failed, will retry on next tick: %v", err)
-			return
-		}
-		sessionToken, err := auth.Login(e.client, e.username, e.password, magicToken)
-		if err != nil {
-			currentFails := e.incrementFailures()
+        if err := auth.Prime(e.client, magicToken); err != nil {
+            log.Printf("[WARN] Gateway priming failed, will retry on next tick: %v", err)
+            return err
+        }
 
-			log.Printf("[ERROR] Login failed (attempt %d/%d): %v", currentFails, MaxAuthFailures, err)
-			log.Println("[INFO] Retrying Login on next Tick")
+        sessionToken, err := auth.Login(e.client, e.username, e.password, magicToken)
+        if err != nil {
+            currentFails := e.incrementFailures()
+            log.Printf("[ERROR] Login failed (attempt %d/%d): %v", currentFails, MaxAuthFailures, err)
+            if currentFails >= MaxAuthFailures {
+                e.transition(StateCooldown)
+            }
+            return err
+        }
 
-			if currentFails >= MaxAuthFailures {
-				e.transition(StateCooldown)
-			}
+        e.setSessionToken(sessionToken)
+        log.Printf("[SUCCESS] Logged in! Session token: %s", sessionToken)
+        e.transition(StateOnline)
+    }
 
-			return
-		}
+    return nil
+}
 
-		e.setSessionToken(sessionToken)
-		log.Printf("[SUCCESS] Logged in! Session token: %s", sessionToken)
-		e.transition(StateOnline)
+// State Controllers for IPC
+
+func (e *Engine) Connect(timeout time.Duration) error {
+    e.mu.Lock()
+    e.paused = false
+    e.failCount = 0
+    if e.state == StateCooldown {
+        e.state = StateOffline
+    }
+    e.mu.Unlock()
+
+    respChan := make(chan error, 1)
+
+    select {
+    case e.triggerChan <- respChan:
+        select {
+        case err := <-respChan:
+            return err
+        case <-time.After(timeout):
+            return errors.New("connection attempt timed out")
+        }
+    default:
+        return errors.New("connection attempt already in progress")
+    }
+}
+
+func (e *Engine) Disconnect() {
+	e.mu.Lock()
+	e.paused = true
+	e.sessionToken = ""
+	e.mu.Unlock()
+
+	e.transition(StateOffline)
+	log.Printf("[INFO] Disconnected and Engine paused by user command")
+}
+
+
+// Accessor Methods for the IPC
+func (e *Engine) TriggerCheck() {
+	select {
+		case e.triggerChan <- nil:
+		log.Printf("[INFO] Background Check Triggered")
+		default:
 	}
 }
+
+func (e *Engine) Username() string {
+	return e.username
+}
+
+func (e *Engine) Uptime() time.Duration {
+	return time.Since(e.startTime)
+}
+
+func (e *Engine) LastProbe() time.Time {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.lastProbe
+}
+
+
+
+
 
 // Thread-Safe Getters
 
@@ -151,6 +229,15 @@ func (e *Engine) SessionToken() string {
 	defer e.mu.RUnlock()
 	return e.sessionToken
 }
+
+func (e *Engine) IsPaused() bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.paused
+}
+
+
+
 
 // Mutex Helpers
 
@@ -211,4 +298,11 @@ func (e *Engine) inCooldown() bool {
 	waitTime := CooldownDuration - time.Since(e.cooldownStart)
 	log.Printf("[INFO] Engine in cooldown. Retrying in %s", waitTime.Round(time.Second))
 	return true // Still in cooldown, skip this tick
+}
+
+
+func (e *Engine) updateLastProbe() {
+	e.mu.Lock()
+	e.lastProbe = time.Now()
+	e.mu.Unlock()
 }
