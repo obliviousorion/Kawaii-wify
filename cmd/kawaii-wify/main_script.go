@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -10,9 +11,10 @@ import (
 
 func main_script() {
 	client := auth.NewClient()
+	ctx := context.Background()
 
 	// 1. Probe network state
-	isCaptive, challengeToken, err := auth.Probe(client)
+	isCaptive, challengeToken, err := auth.Probe(ctx, client)
 	if err != nil {
 		log.Fatalf("[FATAL] Probe failed: %v", err)
     }
@@ -25,14 +27,14 @@ func main_script() {
     fmt.Printf("[INFO] Trapped in portal. Challenge token: %s\n", challengeToken)
 
     // 2. Prime the gateway session
-    if err := auth.Prime(client, challengeToken); err != nil {
+    if err := auth.Prime(ctx, client, challengeToken); err != nil {
         log.Fatalf("[FATAL] Priming failed: %v", err)
     }
     fmt.Println("[INFO] Gateway primed successfully.")
 
     // 3. Authenticate
     // (We will replace hardcoded credentials with the secure Keyring in Milestone 3)
-    sessionToken, err := auth.Login(client, "F20230814", "F20237057#", challengeToken)
+    sessionToken, err := auth.Login(ctx, client, "F20230814", "F20237057#", challengeToken)
     if err != nil {
         log.Fatalf("[FATAL] Login failed: %v", err)
     }
@@ -40,7 +42,7 @@ func main_script() {
 
     // 4. Test Keepalive
     fmt.Println("[INFO] Testing keepalive ping...")
-    if err := auth.Keepalive(client, sessionToken); err != nil {
+    if err := auth.Keepalive(ctx, client, sessionToken); err != nil {
         log.Printf("[WARN] Keepalive check failed: %v", err)
     } else {
         fmt.Println("[SUCCESS] Keepalive acknowledged by gateway.")
@@ -50,7 +52,7 @@ func main_script() {
     isLogout := false
     if isLogout {
         time.Sleep(2 * time.Second)
-        if err := auth.Logout(client, sessionToken); err != nil {
+        if err := auth.Logout(ctx, client, sessionToken); err != nil {
             log.Printf("[WARN] Logout error: %v", err)
         } else {
             fmt.Println("[SUCCESS] Logged out cleanly.")
