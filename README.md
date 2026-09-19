@@ -301,6 +301,9 @@ A cross-platform `Makefile` is provided for common development and production ta
 # Automatically build for your current host OS (Windows, Linux, or macOS)
 make
 
+# Compile and install globally to system Go binary path
+make install
+
 # Automatically build and run for current host OS with optional flags
 make run ARGS="daemon"
 make run ARGS='login -u F20230814 -p "MyPassword#"'
