@@ -1,7 +1,8 @@
 package cli
 
 import (
-	"log"
+	"fmt"
+	"os"
 
 	"github.com/obliviousorion/kawaii-wify/internal/ipc"
 	"github.com/spf13/cobra"
@@ -21,20 +22,23 @@ func init() {
 func runConnect(cmd *cobra.Command, args []string) {
 	client, err := ipc.NewClient()
 	if err != nil {
-		log.Fatalf("[FATAL] %v", err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
 	}
 	defer client.Close()
 
-	log.Println("[INFO] Requesting network connection via daemon...")
+	fmt.Println("Connecting to network via daemon...")
 
 	resp, err := client.Connect()
 	if err != nil {
-		log.Fatalf("[ERROR] Connect request failed: %v", err)
+		fmt.Fprintf(os.Stderr, "Error: connect request failed: %v\n", err)
+		os.Exit(1)
 	}
 
 	if !resp.Success {
-		log.Fatalf("[ERROR] %s", resp.Message)
+		fmt.Fprintf(os.Stderr, "✕ %s\n", resp.Message)
+		os.Exit(1)
 	}
 
-	log.Printf("[SUCCESS] %s", resp.Message)
+	fmt.Printf("✓ %s\n", resp.Message)
 }
