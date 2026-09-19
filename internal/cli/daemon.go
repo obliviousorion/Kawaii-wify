@@ -12,6 +12,7 @@ import (
 	"github.com/obliviousorion/kawaii-wify/internal/credentials"
 	"github.com/obliviousorion/kawaii-wify/internal/engine"
 	"github.com/obliviousorion/kawaii-wify/internal/ipc"
+	"github.com/obliviousorion/kawaii-wify/internal/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -31,6 +32,13 @@ var daemonCmd = &cobra.Command{
 }
 
 func runDaemon(cmd *cobra.Command, args []string) {
+	cleanup, err := logger.Setup()
+	if err != nil {
+		log.Printf("[WARN] Failed to setup file logging (falling back to stdout): %v", err)
+	} else {
+		defer cleanup()
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Printf("[WARN] Failed to load config, using defaults: %v", err)
