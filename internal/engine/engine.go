@@ -151,6 +151,10 @@ func (e *Engine) tick(ctx context.Context) error {
             log.Printf("[ERROR] Login failed (attempt %d/%d): %v", currentFails, MaxAuthFailures, err)
             if currentFails >= MaxAuthFailures {
                 e.transition(StateCooldown)
+                e.mu.Lock()
+                e.paused = true
+                e.mu.Unlock()
+                log.Println("[WARN] Repeated authentication failures: pausing engine to protect account from lockout. Update credentials via 'kawaii-wify login' and run 'kawaii-wify connect'.")
             }
             return err
         }
