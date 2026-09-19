@@ -19,7 +19,7 @@ endif
 # Target binary for the current host OS
 CURRENT_BIN = bin/debug/$(BINARY_NAME)-$(HOST_OS)$(EXT)
 
-.PHONY: all build run clean build-all \
+.PHONY: all build run install clean build-all \
         build-linux build-linux-release \
         build-windows build-windows-release \
         build-darwin build-darwin-release
@@ -29,6 +29,11 @@ all: build
 # Automatically builds for your current OS
 build:
 	@go build -ldflags="$(LDFLAGS)" -o "$(CURRENT_BIN)" ./cmd/kawaii-wify
+
+# Compiles and installs binary globally to Go binary directory
+install:
+	@go install -ldflags="$(LDFLAGS)" ./cmd/kawaii-wify
+	@echo Installed $(BINARY_NAME) v$(VERSION) to Go binary path.
 
 # Automatically builds and runs for current OS with flags support (e.g. make run ARGS="...")
 run: build
