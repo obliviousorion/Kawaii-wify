@@ -36,7 +36,7 @@ kawaii-wify/
 ├── internal/
 │   ├── auth/
 │   │   ├── client.go          # Custom HTTP transport (HTTP/1.1 enforcement, SNI checks)
-│   │   └── portal.go          # FortiOS primitives (Probe, Prime, Login, Keepalive, Logout)
+│   │   └── gateway.go         # FortiOS Gateway client (Probe, Prime, Login, Keepalive, Logout)
 │   ├── cli/
 │   │   ├── root.go            # Cobra root command definition and execution entrypoint
 │   │   ├── daemon.go          # 'daemon' command (background authentication and keepalive)
