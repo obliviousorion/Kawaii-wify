@@ -82,7 +82,7 @@ func runDaemon(cmd *cobra.Command, args []string) {
 	eng := engine.New(client, user, pass, keepalive, autoConnect)
 
 	go func() {
-		if err := ipc.Serve(ctx, listener, eng); err != nil {
+		if err := ipc.Serve(ctx, cancel, listener, eng); err != nil {
 			log.Printf("[WARN] IPC server stopped: %v", err)
 		}
 	}()

@@ -36,11 +36,13 @@ type Controller interface {
 
 type DaemonService struct {
 	controller Controller
+	cancel     context.CancelFunc
 }
 
-func NewDaemonService(controller Controller) *DaemonService {
+func NewDaemonService(controller Controller, cancel context.CancelFunc) *DaemonService {
 	return &DaemonService{
 		controller: controller,
+		cancel:     cancel,
 	}
 }
 
@@ -87,10 +89,24 @@ func (s *DaemonService) Disconnect(req ActionRequest, resp *ActionResponse) erro
 	return nil
 }
 
+// Stop revokes any active session and initiates graceful daemon termination.
+func (s *DaemonService) Stop(req ActionRequest, resp *ActionResponse) error {
+	s.controller.Disconnect()
+	resp.Success = true
+	resp.Message = "Daemon stopping..."
+	if s.cancel != nil {
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			s.cancel()
+		}()
+	}
+	return nil
+}
+
 // Serve starts the RPC server on the listener and blocks until ctx is canceled.
-func Serve(ctx context.Context, listener net.Listener, controller Controller) error {
+func Serve(ctx context.Context, cancel context.CancelFunc, listener net.Listener, controller Controller) error {
     server := rpc.NewServer()
-    service := NewDaemonService(controller)
+    service := NewDaemonService(controller, cancel)
 
     if err := server.RegisterName("Daemon", service); err != nil {
         return fmt.Errorf("failed to register daemon rpc service: %w", err)
