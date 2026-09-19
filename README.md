@@ -16,8 +16,9 @@ Campus Wi-Fi networks secured by FortiGate firewalls require users to authentica
 - **Circuit Breaker & Cooldown**: Protects against firewall bans and account lockouts by halting login attempts after consecutive failures and self-healing.
 - **Persistent Configuration**: Automatically manages user settings (such as default username and polling intervals) in a local config file.
 - **Secure Credential Storage**: Leverages OS Keyrings (Linux Secret Service/D-Bus, macOS Keychain, Windows Credential Manager) and masked interactive prompts so passwords are never stored in plaintext.
-- **Modular CLI Architecture**: Powered by Cobra with dedicated subcommands (`daemon`, `login`, `logout`, `config`).
-- **Graceful Signal Handling**: Listens for termination signals (`SIGINT`, `SIGTERM`) to clean up engine routines smoothly.
+- **Modular CLI Architecture**: Powered by Cobra with dedicated subcommands (`daemon`, `login`, `logout`, `status`, `config`).
+- **Cross-Platform IPC Layer**: Exposes live daemon telemetry and session management over Unix domain sockets (Linux/macOS) and Named Pipes (Windows).
+- **Graceful Signal Handling**: Listens for termination signals (`SIGINT`, `SIGTERM`) to clean up engine routines and IPC sockets smoothly.
 
 ---
 
@@ -41,6 +42,7 @@ kawaii-wify/
 │   │   ├── daemon.go          # 'daemon' command (background authentication and keepalive)
 │   │   ├── login.go           # 'login' command (credentials enrollment into Keyring & config)
 │   │   ├── logout.go          # 'logout' command (credential purge and active session reset)
+│   │   ├── status.go          # 'status' command (queries running daemon over IPC)
 │   │   └── config.go          # 'config' command ('get' and 'set' for local preferences)
 │   ├── config/
 │   │   └── config.go          # JSON configuration loader and persistent storage
@@ -51,6 +53,12 @@ kawaii-wify/
 │   ├── engine/
 │   │   ├── engine.go          # Thread-safe state engine, ticker loop, circuit breaker
 │   │   └── state.go           # State constants and transitions
+│   ├── ipc/
+│   │   ├── client.go          # RPC client wrapper for CLI communication
+│   │   ├── server.go          # Net/RPC daemon service and concurrent server loop
+│   │   ├── transport_unix.go  # Unix domain socket transport (Linux/macOS)
+│   │   ├── transport_windows.go # Named pipe transport (Windows)
+│   │   └── types.go           # Telemetry, status, and control request/response types
 │   └── tray/
 │       └── assets/            # System tray icon assets (under development)
 ├── Makefile                   # Build, release, and run targets
@@ -149,7 +157,23 @@ kawaii-wify daemon -u F20230814
 kawaii-wify daemon --no-keepalive
 ```
 
-### 2. Login & Credential Enrollment
+### 2. Status & Telemetry Query
+Query the running background daemon over IPC for real-time status and operational metrics:
+```bash
+kawaii-wify status
+```
+Example output:
+```text
+kawaii-wify Daemon Status
+─────────────────────────
+  State:         Online
+  User:          F20230814
+  Uptime:        42m15s
+  Last Probe:    15:04:05
+  Session:       0a1b2c3d4e5f6a7b
+```
+
+### 3. Login & Credential Enrollment
 Store or update credentials in the OS keyring and set the active user:
 ```bash
 # Interactive prompt for username and password
@@ -203,6 +227,9 @@ FortiGate's embedded port 8090 web server has specific network quirks:
 - **Scoped Certificate Verification**: Instead of disabling TLS checks globally with `InsecureSkipVerify: true`, Kawaii-Wify uses a custom `VerifyConnection` callback to verify that the remote certificate Common Name or DNS name matches `fw.bits-pilani.ac.in`.
 - **Referer Pinning & User-Agent**: The FortiOS gateway requires requests to include a browser `User-Agent` and a matching `Referer: https://fw.bits-pilani.ac.in:8090/fgtauth?<token>` header.
 - **Isolated Transport Failure Retries**: Gateway priming errors retry on the next tick without consuming authentication attempts, preventing false-positive account lockouts during Wi-Fi drops.
+- **Cross-Platform IPC Layer**: CLI-to-daemon communication uses standard Go `net/rpc` over native local IPC transports:
+  - **Windows**: Named Pipes (`\\.\pipe\kawaii-wify`) via `github.com/Microsoft/go-winio`.
+  - **Linux/macOS**: Unix Domain Sockets (`$XDG_RUNTIME_DIR/kawaii-wify.sock` or `$TMPDIR/kawaii-wify.sock`) enforced with user-only file permissions (`0600`).
 
 ---
 
@@ -300,8 +327,10 @@ Run Kawaii-Wify silently in the background whenever you log into Windows:
 
 ## Roadmap
 
-- [x] Cobra CLI subcommands (`daemon`, `login`, `logout`, `config get`, `config set`).
+- [x] Cobra CLI subcommands (`daemon`, `login`, `logout`, `status`, `config get`, `config set`).
 - [x] Password-only prompt when target user is already known.
+- [x] Cross-platform IPC Server & RPC control layer (Unix Domain Sockets & Windows Named Pipes).
+- [x] `status` CLI command to inspect live daemon telemetry.
 - [ ] Network interface & SSID binding (trigger probes only when connected to designated campus SSIDs).
 - [ ] Desktop notifications via D-Bus (`notify-send` / `libnotify`) for connection drops and re-logins.
 - [ ] System tray indicator with real-time status and quick actions.
