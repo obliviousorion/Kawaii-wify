@@ -16,9 +16,11 @@ import (
 )
 
 var (
-	userOverride string
-	noKeepalive  bool
-	noAutoConnect bool
+	userOverride    string
+	keepaliveFlag   bool
+	noKeepalive     bool
+	autoConnectFlag bool
+	noAutoConnect   bool
 )
 
 var daemonCmd = &cobra.Command{
@@ -50,18 +52,21 @@ func runDaemon(cmd *cobra.Command, args []string) {
 	}
 
 	keepalive := cfg.Keepalive
-	if noKeepalive {
+	if cmd.Flags().Changed("no-keepalive") {
 		keepalive = false
+	} else if cmd.Flags().Changed("keepalive") {
+		keepalive = keepaliveFlag
 	}
 
 	autoConnect := cfg.AutoConnect
-	if noAutoConnect {
+	if cmd.Flags().Changed("no-auto-connect") || cmd.Flags().Changed("paused") {
 		autoConnect = false
+	} else if cmd.Flags().Changed("auto-connect") {
+		autoConnect = autoConnectFlag
 	}
 
-log.Printf("[INFO] Starting kawaii-wify for user: %s (interval: %s, keepalive: %t, auto_connect: %t)", 
+	log.Printf("[INFO] Starting kawaii-wify for user: %s (interval: %s, keepalive: %t, auto_connect: %t)", 
 		user, cfg.Interval(), keepalive, autoConnect)
-
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -73,16 +78,14 @@ log.Printf("[INFO] Starting kawaii-wify for user: %s (interval: %s, keepalive: %
 	}
 	defer listener.Close()
 
-
 	client := auth.NewClient()
-	eng := engine.New(client, user, pass, keepalive, autoConnect )
+	eng := engine.New(client, user, pass, keepalive, autoConnect)
 
 	go func() {
 		if err := ipc.Serve(ctx, listener, eng); err != nil {
 			log.Printf("[WARN] IPC server stopped: %v", err)
 		}
-	} ()
-
+	}()
 
 	if err := eng.Run(ctx, cfg.Interval()); err != nil && err != context.Canceled {
 		log.Fatalf("[FATAL] Engine crashed: %v", err)
@@ -93,7 +96,9 @@ log.Printf("[INFO] Starting kawaii-wify for user: %s (interval: %s, keepalive: %
 
 func init() {
 	daemonCmd.Flags().StringVarP(&userOverride, "user", "u", "", "Set or override kawaii-wify username")
+	daemonCmd.Flags().BoolVar(&keepaliveFlag, "keepalive", true, "Enable periodic keepalive pings")
 	daemonCmd.Flags().BoolVar(&noKeepalive, "no-keepalive", false, "Disable periodic keepalive pings")
+	daemonCmd.Flags().BoolVar(&autoConnectFlag, "auto-connect", true, "Automatically connect and authenticate on launch")
 	daemonCmd.Flags().BoolVar(&noAutoConnect, "no-auto-connect", false, "Start daemon without automatically connecting")
 	daemonCmd.Flags().BoolVarP(&noAutoConnect, "paused", "p", false, "Start daemon in paused state (alias for --no-auto-connect)")
 	rootCmd.AddCommand(daemonCmd)
