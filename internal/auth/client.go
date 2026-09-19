@@ -7,12 +7,21 @@ import (
 	"time"
 )
 
-func NewClient() *http.Client {
-
+// NewClient creates an HTTP client enforcing HTTP/1.1 over TLS with scoped certificate validation.
+func NewClient(targetHost string) *http.Client {
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: true,
-			VerifyConnection:   verifyConnection,
+			VerifyConnection: func(cs tls.ConnectionState) error {
+				if len(cs.PeerCertificates) == 0 {
+					return fmt.Errorf("no certificates presented by server")
+				}
+				leaf := cs.PeerCertificates[0]
+				if targetHost != "" && leaf.Subject.CommonName != targetHost && leaf.VerifyHostname(targetHost) != nil {
+					return fmt.Errorf("certificate host mismatch: got %s, want %s", leaf.Subject.CommonName, targetHost)
+				}
+				return nil
+			},
 		},
 		TLSNextProto: make(map[string]func(authority string, c *tls.Conn) http.RoundTripper),
 	}
@@ -20,15 +29,4 @@ func NewClient() *http.Client {
 		Transport: tr,
 		Timeout:   10 * time.Second,
 	}
-}
-
-func verifyConnection(cs tls.ConnectionState) error {
-	if len(cs.PeerCertificates) == 0 {
-		return fmt.Errorf("no certificates presented by server")
-	}
-	leaf := cs.PeerCertificates[0]
-	if leaf.Subject.CommonName != "fw.bits-pilani.ac.in" && leaf.VerifyHostname("fw.bits-pilani.ac.in") != nil {
-		return fmt.Errorf("certificate host mismatch: %s", leaf.Subject.CommonName)
-	}
-	return nil
 }

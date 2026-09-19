@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"sync"
 	"time"
 
@@ -25,37 +24,36 @@ var (
 )
 
 type Engine struct {
-	client    *http.Client
+	gateway   *auth.Gateway
 	username  string
 	password  string
 	keepalive bool
 
-	triggerChan	  chan chan error
-	startTime	time.Time
-	lastProbe	time.Time
-	paused		bool
-	
+	triggerChan   chan chan error
+	startTime     time.Time
+	lastProbe     time.Time
+	paused        bool
+
 	mu            sync.RWMutex
 	state         State
 	sessionToken  string
 	failCount     int
 	cooldownStart time.Time
-	
 }
 
 // Constructor for the Engine
 
-func New(client *http.Client, username string, password string, keepalive bool, autoConnect bool) *Engine {
+func New(gw *auth.Gateway, username string, password string, keepalive bool, autoConnect bool) *Engine {
 	return &Engine{
-		client:    client,
-		username:  username,
-		password:  password,
-		keepalive: keepalive,
-		paused:    !autoConnect,
-		state:     StateOffline,
-		failCount: 0,
+		gateway:     gw,
+		username:    username,
+		password:    password,
+		keepalive:   keepalive,
+		paused:      !autoConnect,
+		state:       StateOffline,
+		failCount:   0,
 		triggerChan: make(chan chan error, 1),
-		startTime: time.Now(),
+		startTime:   time.Now(),
 	}
 }
 
@@ -106,7 +104,7 @@ func (e *Engine) tick(ctx context.Context) error {
 		return ErrCooldown
 	}
 
-	isCaptive, magicToken, err := auth.Probe(ctx, e.client)
+	isCaptive, magicToken, err := e.gateway.Probe(ctx)
 	if err != nil {
 		if e.State() != StateOffline {
 			logger.Net("Network unreachable, transitioning to offline: %v", err)
@@ -120,7 +118,7 @@ func (e *Engine) tick(ctx context.Context) error {
 		if e.keepalive {
 			token := e.SessionToken()
 			if token != "" {
-				if err := auth.Keepalive(ctx, e.client, token); err != nil {
+				if err := e.gateway.Keepalive(ctx, token); err != nil {
 					logger.Warn("Keepalive ping failed: %v", err)
 					return err
 				}
@@ -138,13 +136,13 @@ func (e *Engine) tick(ctx context.Context) error {
 			return ErrMaxAuthFailures
 		}
 
-		if err := auth.Prime(ctx, e.client, magicToken); err != nil {
+		if err := e.gateway.Prime(ctx, magicToken); err != nil {
 			logger.Warn("Gateway priming failed, will retry on next tick: %v", err)
 			return err
 		}
 		logger.Auth("Gateway primed (magic: %s)", magicToken)
 
-		sessionToken, err := auth.Login(ctx, e.client, e.username, e.password, magicToken)
+		sessionToken, err := e.gateway.Login(ctx, e.username, e.password, magicToken)
 		if err != nil {
 			currentFails := e.incrementFailures()
 			logger.Error("Login failed (attempt %d/%d): %v", currentFails, MaxAuthFailures, err)
@@ -204,7 +202,7 @@ func (e *Engine) Disconnect() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		if err := auth.Logout(ctx, e.client, token); err != nil {
+		if err := e.gateway.Logout(ctx, token); err != nil {
 			logger.Warn("Remote FortiGate logout failed: %v", err)
 		} else {
 			logger.Auth("Remote FortiGate session %s revoked", token)
