@@ -1,12 +1,15 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
 	"github.com/obliviousorion/kawaii-wify/internal/ipc"
 	"github.com/spf13/cobra"
 )
+
+var statusJson bool
 
 var statusCmd = &cobra.Command{
 	Use:   "status",
@@ -16,6 +19,7 @@ var statusCmd = &cobra.Command{
 }
 
 func init() {
+	statusCmd.Flags().BoolVarP(&statusJson, "json", "j", false, "Output status telemetry in JSON format")
 	rootCmd.AddCommand(statusCmd)
 }
 
@@ -31,6 +35,16 @@ func runStatus(cmd *cobra.Command, args []string) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error querying daemon: %v\n", err)
 		os.Exit(1)
+	}
+
+	if statusJson {
+		data, err := json.MarshalIndent(status, "", "  ")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error encoding JSON status: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Println(string(data))
+		return
 	}
 
 	lastProbeStr := "In progress..."
