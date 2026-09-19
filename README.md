@@ -42,6 +42,7 @@ kawaii-wify/
 │   │   ├── daemon.go          # 'daemon' command (background authentication and keepalive)
 │   │   ├── connect.go         # 'connect' command (triggers immediate probe/login via IPC)
 │   │   ├── disconnect.go      # 'disconnect' command (pauses daemon & clears session via IPC)
+│   │   ├── stop.go            # 'stop' command (gracefully shuts down daemon via IPC)
 │   │   ├── login.go           # 'login' command (credentials enrollment into Keyring & config)
 │   │   ├── logout.go          # 'logout' command (credential purge and active session reset)
 │   │   ├── status.go          # 'status' command (queries running daemon over IPC)
@@ -164,7 +165,7 @@ kawaii-wify daemon --no-keepalive
 kawaii-wify daemon --no-auto-connect   # or kawaii-wify daemon -p / --paused
 ```
 
-### 2. Manual Connect & Disconnect (IPC Triggers)
+### 2. Manual Connect, Disconnect & Stop (IPC Triggers)
 Control a running background daemon on-demand over IPC:
 ```bash
 # Trigger an immediate probe & login attempt (unpauses background daemon)
@@ -172,12 +173,19 @@ kawaii-wify connect
 
 # Clear active session & pause automatic reconnect monitoring
 kawaii-wify disconnect
+
+# Gracefully terminate the background daemon process
+kawaii-wify stop
 ```
 
-### 2. Status & Telemetry Query
+### 3. Status & Telemetry Query
 Query the running background daemon over IPC for real-time status and operational metrics:
 ```bash
+# Formatted human-readable status
 kawaii-wify status
+
+# Structured JSON output (for scripts, GUI integrations, or piping into jq)
+kawaii-wify status --json
 ```
 Example output:
 ```text
@@ -185,12 +193,13 @@ kawaii-wify Daemon Status
 ─────────────────────────
   State:         Online
   User:          F20230814
+  Paused:        false
   Uptime:        42m15s
   Last Probe:    15:04:05
   Session:       0a1b2c3d4e5f6a7b
 ```
 
-### 3. Login & Credential Enrollment
+### 4. Login & Credential Enrollment
 Store or update credentials in the OS keyring and set the active user:
 ```bash
 # Interactive prompt for username and password
@@ -203,7 +212,7 @@ kawaii-wify login -u F20230814
 kawaii-wify login -u F20230814 -p "F20237057#"
 ```
 
-### 3. Logout & Purge
+### 5. Logout & Purge
 Purge stored credentials from the keyring and clear the active user session:
 ```bash
 # Logout the currently configured active user
@@ -213,7 +222,7 @@ kawaii-wify logout
 kawaii-wify logout -u F20230814
 ```
 
-### 4. Configuration Management (`get` & `set`)
+### 6. Configuration Management (`get` & `set`)
 Inspect and update settings without manually editing JSON files:
 ```bash
 # View all configuration settings
