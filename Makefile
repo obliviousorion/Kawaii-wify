@@ -28,7 +28,7 @@ all: build
 
 # Automatically builds for your current OS
 build:
-	@go build -o "$(CURRENT_BIN)" ./cmd/kawaii-wify
+	@go build -ldflags="$(LDFLAGS)" -o "$(CURRENT_BIN)" ./cmd/kawaii-wify
 
 # Automatically builds and runs for current OS with flags support (e.g. make run ARGS="...")
 run: build
