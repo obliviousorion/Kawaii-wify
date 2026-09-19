@@ -39,7 +39,8 @@ kawaii-wify/
 │   │   └── gateway.go         # FortiOS Gateway client (Probe, Prime, Login, Keepalive, Logout)
 │   ├── cli/
 │   │   ├── root.go            # Cobra root command definition and execution entrypoint
-│   │   ├── daemon.go          # 'daemon' command (background authentication and keepalive)
+│   │   ├── start.go           # 'start' command (spawns daemon detached in background)
+│   │   ├── daemon.go          # 'daemon' command (foreground authentication and keepalive)
 │   │   ├── connect.go         # 'connect' command (triggers immediate probe/login via IPC)
 │   │   ├── disconnect.go      # 'disconnect' command (pauses daemon & clears session via IPC)
 │   │   ├── stop.go            # 'stop' command (gracefully shuts down daemon via IPC)
@@ -162,23 +163,20 @@ Credentials are resolved using a cascading hierarchy:
 
 Kawaii-Wify provides commands to control the daemon, manage authentication, and configure settings:
 
-### 1. Running the Daemon
-Run the background authentication and keepalive service:
+### 1. Starting the Daemon (`start` & `daemon`)
+Launch the background authentication and keepalive service:
 ```bash
-# Start daemon with saved defaults
+# Start daemon detached in the background (survives closing the terminal)
+kawaii-wify start
+
+# Start in background with user or gateway override
+kawaii-wify start -u F20230814 --gateway 172.16.100.1:8090
+
+# Start in background in paused state
+kawaii-wify start -p
+
+# Run attached in the foreground (useful for watching live logs in terminal)
 kawaii-wify daemon
-
-# Override active user for this session
-kawaii-wify daemon -u F20230814
-
-# Override gateway endpoint for this session
-kawaii-wify daemon --gateway 172.16.100.1:8090
-
-# Run without keepalive pings (only auto-relies on disconnect detection)
-kawaii-wify daemon --no-keepalive
-
-# Start daemon in paused state without automatic connection
-kawaii-wify daemon --no-auto-connect   # or kawaii-wify daemon -p / --paused
 ```
 
 ### 2. Manual Connect, Disconnect & Stop (IPC Triggers)
