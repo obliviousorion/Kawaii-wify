@@ -45,12 +45,13 @@ type Engine struct {
 
 // Constructor for the Engine
 
-func New(client *http.Client, username string, password string, keepalive bool) *Engine {
+func New(client *http.Client, username string, password string, keepalive bool, autoConnect bool) *Engine {
 	return &Engine{
 		client:    client,
 		username:  username,
 		password:  password,
 		keepalive: keepalive,
+		paused:    !autoConnect,
 		state:     StateOffline,
 		failCount: 0,
 		triggerChan: make(chan chan error, 1),
@@ -63,7 +64,10 @@ func New(client *http.Client, username string, password string, keepalive bool) 
 func (e *Engine) Run(ctx context.Context, interval time.Duration) error {
 
 	// execute a tick immediately
-	e.tick(ctx)
+	if !e.IsPaused() {
+		e.tick(ctx)
+	}
+
 
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -75,7 +79,9 @@ func (e *Engine) Run(ctx context.Context, interval time.Duration) error {
 			return ctx.Err()
 
 		case <-ticker.C:
-			e.tick(ctx)
+			if !e.IsPaused() {
+				e.tick(ctx)
+			}
 
 		case respChan := <- e.triggerChan:
 			log.Printf("[INFO] Check triggered by IPC protocol")
@@ -90,12 +96,14 @@ func (e *Engine) Run(ctx context.Context, interval time.Duration) error {
 
 // Main Tick implementation for the Engine
 func (e *Engine) tick(ctx context.Context) error {
-    e.updateLastProbe()
+    
 
     if e.IsPaused() {
         return nil
     }
-
+	
+	e.updateLastProbe()
+	
     if e.inCooldown() {
         return ErrCooldown
     }

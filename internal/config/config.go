@@ -12,12 +12,14 @@ type Config struct {
 	Username      string `json:"username"`
 	CheckInterval string `json:"check_interval"`
 	Keepalive     bool   `json:"keepalive"`
+	AutoConnect	  bool	 `json:"auto_connect"`
 }
 
 func Default() *Config {
 	return &Config{
 		CheckInterval: "10s",
 		Keepalive:     true,
+		AutoConnect:   true,
 	}
 }
 
