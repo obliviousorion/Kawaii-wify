@@ -40,6 +40,8 @@ kawaii-wify/
 │   ├── cli/
 │   │   ├── root.go            # Cobra root command definition and execution entrypoint
 │   │   ├── daemon.go          # 'daemon' command (background authentication and keepalive)
+│   │   ├── connect.go         # 'connect' command (triggers immediate probe/login via IPC)
+│   │   ├── disconnect.go      # 'disconnect' command (pauses daemon & clears session via IPC)
 │   │   ├── login.go           # 'login' command (credentials enrollment into Keyring & config)
 │   │   ├── logout.go          # 'logout' command (credential purge and active session reset)
 │   │   ├── status.go          # 'status' command (queries running daemon over IPC)
@@ -116,7 +118,8 @@ Kawaii-Wify supports persistent user configuration stored in your standard user 
 {
   "username": "F20230814",
   "check_interval": "10s",
-  "keepalive": true
+  "keepalive": true,
+  "auto_connect": true
 }
 ```
 
@@ -125,6 +128,7 @@ Kawaii-Wify supports persistent user configuration stored in your standard user 
 | `username` | string | `""` | Active student ID / campus login ID. Automatically saved on login/override. |
 | `check_interval` | string | `"10s"` | Frequency of probe and keepalive checks (parsed as a Go duration, e.g. `"5s"`, `"10s"`, `"1m"`). |
 | `keepalive` | bool | `true` | When enabled, sends periodic keepalive pings while online. When disabled, relies purely on automatic re-login upon connection drops. |
+| `auto_connect` | bool | `true` | When enabled, daemon automatically connects on startup. When false, daemon starts in paused state. |
 
 ---
 
@@ -155,6 +159,19 @@ kawaii-wify daemon -u F20230814
 
 # Run without keepalive pings (only auto-relies on disconnect detection)
 kawaii-wify daemon --no-keepalive
+
+# Start daemon in paused state without automatic connection
+kawaii-wify daemon --no-auto-connect   # or kawaii-wify daemon -p / --paused
+```
+
+### 2. Manual Connect & Disconnect (IPC Triggers)
+Control a running background daemon on-demand over IPC:
+```bash
+# Trigger an immediate probe & login attempt (unpauses background daemon)
+kawaii-wify connect
+
+# Clear active session & pause automatic reconnect monitoring
+kawaii-wify disconnect
 ```
 
 ### 2. Status & Telemetry Query

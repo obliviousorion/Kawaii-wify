@@ -18,6 +18,7 @@ import (
 var (
 	userOverride string
 	noKeepalive  bool
+	noAutoConnect bool
 )
 
 var daemonCmd = &cobra.Command{
@@ -58,7 +59,14 @@ func runDaemon(cmd *cobra.Command, args []string) {
 		keepalive = false
 	}
 
-	log.Printf("[INFO] Starting kawaii-wify for user: %s (interval: %s, keepalive: %t)", user, cfg.Interval(), keepalive)
+	autoConnect := cfg.AutoConnect
+	if noAutoConnect {
+		autoConnect = false
+	}
+
+log.Printf("[INFO] Starting kawaii-wify for user: %s (interval: %s, keepalive: %t, auto_connect: %t)", 
+		user, cfg.Interval(), keepalive, autoConnect)
+
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -72,7 +80,7 @@ func runDaemon(cmd *cobra.Command, args []string) {
 
 
 	client := auth.NewClient()
-	eng := engine.New(client, user, pass, keepalive)
+	eng := engine.New(client, user, pass, keepalive, autoConnect )
 
 	go func() {
 		if err := ipc.Serve(ctx, listener, eng); err != nil {
@@ -91,5 +99,7 @@ func runDaemon(cmd *cobra.Command, args []string) {
 func init() {
 	daemonCmd.Flags().StringVarP(&userOverride, "user", "u", "", "Set or override kawaii-wify username")
 	daemonCmd.Flags().BoolVar(&noKeepalive, "no-keepalive", false, "Disable periodic keepalive pings")
+	daemonCmd.Flags().BoolVar(&noAutoConnect, "no-auto-connect", false, "Start daemon without automatically connecting")
+	daemonCmd.Flags().BoolVarP(&noAutoConnect, "paused", "p", false, "Start daemon in paused state (alias for --no-auto-connect)")
 	rootCmd.AddCommand(daemonCmd)
 }

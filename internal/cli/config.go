@@ -44,6 +44,7 @@ func runConfigGet(cmd *cobra.Command, args []string) {
 		fmt.Printf("username: %s\n", cfg.Username)
 		fmt.Printf("check_interval: %s\n", cfg.CheckInterval)
 		fmt.Printf("keepalive: %t\n", cfg.Keepalive)
+		fmt.Printf("auto_connect: %t\n", cfg.AutoConnect)
 		return
 	}
 
@@ -55,8 +56,10 @@ func runConfigGet(cmd *cobra.Command, args []string) {
 		fmt.Println(cfg.CheckInterval)
 	case "keepalive":
 		fmt.Println(cfg.Keepalive)
+	case "auto_connect", "autoconnect":
+		fmt.Println(cfg.AutoConnect)
 	default:
-		log.Fatalf("[ERROR] Unknown configuration key '%s'. Supported keys: username, check_interval, keepalive", args[0])
+		log.Fatalf("[ERROR] Unknown configuration key '%s'. Supported keys: username, check_interval, keepalive, auto_connect", args[0])
 	}
 }
 
@@ -86,8 +89,14 @@ func runConfigSet(cmd *cobra.Command, args []string) {
 			log.Fatalf("[ERROR] Invalid boolean value '%s'. Use 'true' or 'false'.", val)
 		}
 		cfg.Keepalive = b
+	case "auto_connect", "autoconnect":
+		b, err := strconv.ParseBool(val)
+		if err != nil {
+			log.Fatalf("[ERROR] Invalid boolean value '%s'. Use 'true' or 'false'.", val)
+		}
+		cfg.AutoConnect = b
 	default:
-		log.Fatalf("[ERROR] Unknown configuration key '%s'. Supported keys: username, check_interval, keepalive", args[0])
+		log.Fatalf("[ERROR] Unknown configuration key '%s'. Supported keys: username, check_interval, keepalive, auto_connect", args[0])
 	}
 
 	if err := config.Save(cfg); err != nil {
