@@ -1,10 +1,12 @@
 package cli
 
 import (
-	"log"
+	"fmt"
+	"os"
 
 	"github.com/obliviousorion/kawaii-wify/internal/config"
 	"github.com/obliviousorion/kawaii-wify/internal/credentials"
+	"github.com/obliviousorion/kawaii-wify/internal/ipc"
 	"github.com/spf13/cobra"
 )
 
@@ -16,12 +18,11 @@ var (
 var loginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "Login to FortiOS Captive Portal",
-	Long:  "Authenticate to the FortiOS Captive Portal and store the credentials",
+	Long:  "Store credentials in OS keyring and authenticate to the FortiOS captive portal.",
 	Run:   runLogin,
 }
 
 func runLogin(cmd *cobra.Command, args []string) {
-
 	var user, pass string
 	var err error
 
@@ -40,29 +41,47 @@ func runLogin(cmd *cobra.Command, args []string) {
 	}
 
 	if err != nil {
-		log.Fatalf("[ERROR] Input Error: %v", err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
 	}
 
 	if user == "" || pass == "" {
-		log.Fatalf("[ERROR] Input Error: username and password cannot be empty")
+		fmt.Fprintln(os.Stderr, "Error: username and password cannot be empty")
+		os.Exit(1)
 	}
 
 	if err := credentials.Set(user, pass); err != nil {
-		log.Fatalf("[FATAL] Failed to save credentials to OS Keyring: %v", err)
+		fmt.Fprintf(os.Stderr, "Error: failed to save credentials to OS keyring: %v\n", err)
+		os.Exit(1)
 	}
-	log.Printf("[SUCCESS] Encrypted credentials for %s saved to system keyring.", user)
 
 	cfg, err := config.Load()
 	if err != nil {
-		log.Printf("[WARN] Could not load existing config, creating fresh: %v", err)
 		cfg = config.Default()
 	}
 
 	cfg.Username = user
 	if err := config.Save(cfg); err != nil {
-		log.Printf("[WARN] Failed to save default user to config: %v", err)
+		fmt.Fprintf(os.Stderr, "Warning: failed to save default user to config: %v\n", err)
+	}
+
+	fmt.Printf("✓ Credentials for %s saved to system keyring.\n", user)
+
+	// If background daemon is running, command it to connect immediately
+	client, err := ipc.NewClient()
+	if err == nil {
+		defer client.Close()
+		fmt.Println("Connecting to network via background daemon...")
+		resp, err := client.Connect()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: connect request failed: %v\n", err)
+		} else if !resp.Success {
+			fmt.Fprintf(os.Stderr, "✕ %s\n", resp.Message)
+		} else {
+			fmt.Printf("✓ %s\n", resp.Message)
+		}
 	} else {
-		log.Printf("[INFO] Updated active user to %s in config.", user)
+		fmt.Printf("✓ Active user set to %s. Run 'kawaii-wify daemon' or 'kawaii-wify connect' to authenticate.\n", user)
 	}
 }
 
