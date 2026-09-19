@@ -43,12 +43,14 @@ kawaii-wify/
 │   │   ├── connect.go         # 'connect' command (triggers immediate probe/login via IPC)
 │   │   ├── disconnect.go      # 'disconnect' command (pauses daemon & clears session via IPC)
 │   │   ├── stop.go            # 'stop' command (gracefully shuts down daemon via IPC)
+│   │   ├── logs.go            # 'logs' command (inspects daemon output & log storage path)
 │   │   ├── login.go           # 'login' command (credentials enrollment into Keyring & config)
 │   │   ├── logout.go          # 'logout' command (credential purge and active session reset)
 │   │   ├── status.go          # 'status' command (queries running daemon over IPC)
 │   │   └── config.go          # 'config' command ('get' and 'set' for local preferences)
 │   ├── config/
-│   │   └── config.go          # JSON configuration loader and persistent storage
+│   │   ├── config.go          # JSON configuration loader and persistent storage
+│   │   └── paths.go           # Platform standard configuration and log file paths
 │   ├── credentials/
 │   │   ├── prompt.go          # TTY-aware masked interactive credential & password prompts
 │   │   ├── resolver.go        # Multi-tiered cascading credential resolution
@@ -62,6 +64,8 @@ kawaii-wify/
 │   │   ├── transport_unix.go  # Unix domain socket transport (Linux/macOS)
 │   │   ├── transport_windows.go # Named pipe transport (Windows)
 │   │   └── types.go           # Telemetry, status, and control request/response types
+│   ├── logger/
+│   │   └── logger.go          # Dual-write session logger with atomic sync & boot rotation
 │   └── tray/
 │       └── assets/            # System tray icon assets (under development)
 ├── Makefile                   # Build, release, and run targets
@@ -131,6 +135,13 @@ Kawaii-Wify supports persistent user configuration stored in your standard user 
 | `keepalive` | bool | `true` | When enabled, sends periodic keepalive pings while online. When disabled, relies purely on automatic re-login upon connection drops. |
 | `auto_connect` | bool | `true` | When enabled, daemon automatically connects on startup. When false, daemon starts in paused state. |
 
+### Persistent Logging & Rotation
+
+Daemon session logs are automatically dual-written to standard output and a persistent file with atomic flush syncing:
+- **Windows**: `%LOCALAPPDATA%\kawaii-wify\logs\daemon.log`
+- **Linux/macOS**: `$XDG_STATE_HOME/kawaii-wify/logs/daemon.log` (or `~/.local/state/kawaii-wify/logs/daemon.log`)
+- **Boot Rotation**: Upon launching a new daemon session, the previous log is atomically rotated to `daemon.prev.log`, preventing unbounded disk growth while preserving crash history.
+
 ---
 
 ## Credential Resolution Hierarchy
@@ -199,7 +210,20 @@ kawaii-wify Daemon Status
   Session:       0a1b2c3d4e5f6a7b
 ```
 
-### 4. Login & Credential Enrollment
+### 4. Daemon Logs Inspection
+View recent output from the background daemon without needing to manually hunt down file paths:
+```bash
+# View last 30 log lines (default)
+kawaii-wify logs
+
+# View a specific number of recent lines
+kawaii-wify logs -n 50
+
+# Print the resolved absolute path to the active log file
+kawaii-wify logs -p
+```
+
+### 5. Login & Credential Enrollment
 Store or update credentials in the OS keyring and set the active user:
 ```bash
 # Interactive prompt for username and password
@@ -212,7 +236,7 @@ kawaii-wify login -u F20230814
 kawaii-wify login -u F20230814 -p "F20237057#"
 ```
 
-### 5. Logout & Purge
+### 6. Logout & Purge
 Purge stored credentials from the keyring and clear the active user session:
 ```bash
 # Logout the currently configured active user
@@ -222,7 +246,7 @@ kawaii-wify logout
 kawaii-wify logout -u F20230814
 ```
 
-### 6. Configuration Management (`get` & `set`)
+### 7. Configuration Management (`get` & `set`)
 Inspect and update settings without manually editing JSON files:
 ```bash
 # View all configuration settings
