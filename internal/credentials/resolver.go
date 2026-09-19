@@ -9,18 +9,21 @@ import (
 	"github.com/zalando/go-keyring"
 )
 
-func Resolve(explicitUser string) (string, string, error) {
+func Resolve(flagUser, configUser string) (string, string, error) {
 	envUser := os.Getenv("KAWAII_USER")
 	envPass := os.Getenv("KAWAII_PASS")
 
-	// 1. Determine target user: Flag > Env
-	targetUser := explicitUser
+	// 1. Determine target user: Flag > Env > Config
+	targetUser := flagUser
 	if targetUser == "" {
 		targetUser = envUser
 	}
+	if targetUser == "" {
+		targetUser = configUser
+	}
 
-	// 2. If we have a password from ENV and it matches our target user (or user was set by ENV)
-	if envPass != "" && (explicitUser == "" || explicitUser == envUser) && targetUser != "" {
+	// 2. If we have a password from ENV and it matches our target user
+	if envPass != "" && targetUser != "" && (targetUser == envUser || flagUser == envUser) {
 		return targetUser, envPass, nil
 	}
 

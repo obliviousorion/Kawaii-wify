@@ -35,12 +35,7 @@ func runDaemon(cmd *cobra.Command, args []string) {
 		cfg = config.Default()
 	}
 
-	targetUser := cfg.Username
-	if userOverride != "" {
-		targetUser = userOverride
-	}
-
-	user, pass, err := credentials.Resolve(targetUser)
+	user, pass, err := credentials.Resolve(userOverride, cfg.Username)
 	if err != nil {
 		log.Fatalf("[FATAL] Could not resolve user credentials: %v", err)
 	}
