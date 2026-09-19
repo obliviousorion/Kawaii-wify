@@ -110,8 +110,10 @@ func (e *Engine) tick(ctx context.Context) error {
 
     isCaptive, magicToken, err := auth.Probe(ctx, e.client)
     if err != nil {
-        log.Printf("[ERROR] Probe failed: %v", err)
-        e.transition(StateOffline)
+        if e.State() != StateOffline {
+            log.Printf("[INFO] Network unreachable, transitioning to offline: %v", err)
+            e.transition(StateOffline)
+        }
         return fmt.Errorf("probe failed: %w", err)
     }
 
@@ -189,10 +191,22 @@ func (e *Engine) Connect(timeout time.Duration) error {
 
 func (e *Engine) Disconnect() {
 	e.mu.Lock()
+	token := e.sessionToken
 	e.paused = true
 	e.sessionToken = ""
 	e.transitionLocked(StateOffline)
 	e.mu.Unlock()
+
+	if token != "" {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		if err := auth.Logout(ctx, e.client, token); err != nil {
+			log.Printf("[WARN] Gateway logout request failed: %v", err)
+		} else {
+			log.Printf("[INFO] Gateway session successfully revoked on FortiGate")
+		}
+	}
 
 	log.Printf("[INFO] Disconnected and Engine paused by user command")
 }
