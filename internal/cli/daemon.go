@@ -11,6 +11,7 @@ import (
 	"github.com/obliviousorion/kawaii-wify/internal/config"
 	"github.com/obliviousorion/kawaii-wify/internal/credentials"
 	"github.com/obliviousorion/kawaii-wify/internal/engine"
+	"github.com/obliviousorion/kawaii-wify/internal/ipc"
 	"github.com/spf13/cobra"
 )
 
@@ -62,8 +63,23 @@ func runDaemon(cmd *cobra.Command, args []string) {
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
+	// ipc listener
+	listener, err := ipc.Listen()
+	if err != nil {
+		log.Fatalf("[FATAL] Cannot start IPC Listener: %v", err)
+	}
+	defer listener.Close()
+
+
 	client := auth.NewClient()
 	eng := engine.New(client, user, pass, keepalive)
+
+	go func() {
+		if err := ipc.Serve(ctx, listener, eng); err != nil {
+			log.Printf("[WARN] IPC server stopped: %v", err)
+		}
+	} ()
+
 
 	if err := eng.Run(ctx, cfg.Interval()); err != nil && err != context.Canceled {
 		log.Fatalf("[FATAL] Engine crashed: %v", err)
