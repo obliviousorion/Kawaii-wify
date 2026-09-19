@@ -3,12 +3,12 @@ package ipc
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"net/rpc"
 	"time"
 
 	"github.com/obliviousorion/kawaii-wify/internal/engine"
+	"github.com/obliviousorion/kawaii-wify/internal/logger"
 )
 
 var (
@@ -68,6 +68,7 @@ func (s *DaemonService) GetStatus(req StatusRequest, resp *StatusResponse) error
 // Connect triggers a synchronous network probe and authentication attempt.
 
 func (s *DaemonService) Connect(req ActionRequest, resp *ActionResponse) error {
+	logger.IPC("Command 'connect' received from client")
 	err := s.controller.Connect(defaultConnectTimeout)
 
 	if err != nil {
@@ -83,6 +84,7 @@ func (s *DaemonService) Connect(req ActionRequest, resp *ActionResponse) error {
 
 
 func (s *DaemonService) Disconnect(req ActionRequest, resp *ActionResponse) error {
+	logger.IPC("Command 'disconnect' received from client")
 	s.controller.Disconnect()
 	resp.Success = true
 	resp.Message = "Session disconnected and Daemon Paused"
@@ -91,6 +93,7 @@ func (s *DaemonService) Disconnect(req ActionRequest, resp *ActionResponse) erro
 
 // Stop revokes any active session and initiates graceful daemon termination.
 func (s *DaemonService) Stop(req ActionRequest, resp *ActionResponse) error {
+	logger.IPC("Command 'stop' received from client")
 	s.controller.Disconnect()
 	resp.Success = true
 	resp.Message = "Daemon stopping..."
@@ -124,7 +127,7 @@ func Serve(ctx context.Context, cancel context.CancelFunc, listener net.Listener
             case <-ctx.Done():
                 return nil
             default:
-                log.Printf("[WARN] IPC accept error: %v", err)
+                logger.Warn("IPC accept error: %v", err)
                 continue
             }
         }

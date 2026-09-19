@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"log"
 	"os"
 	"os/signal"
 	"syscall"
@@ -34,28 +33,28 @@ var daemonCmd = &cobra.Command{
 func runDaemon(cmd *cobra.Command, args []string) {
 	cleanup, err := logger.Setup()
 	if err != nil {
-		log.Printf("[WARN] Failed to setup file logging (falling back to stdout): %v", err)
+		logger.Warn("Failed to setup file logging (falling back to stdout): %v", err)
 	} else {
 		defer cleanup()
 	}
 
 	cfg, err := config.Load()
 	if err != nil {
-		log.Printf("[WARN] Failed to load config, using defaults: %v", err)
+		logger.Warn("Failed to load config, using defaults: %v", err)
 		cfg = config.Default()
 	}
 
 	user, pass, err := credentials.Resolve(userOverride, cfg.Username)
 	if err != nil {
-		log.Fatalf("[FATAL] Could not resolve user credentials: %v", err)
+		logger.Fatal("Could not resolve user credentials: %v", err)
 	}
 
 	if cfg.Username != user {
 		cfg.Username = user
 		if err := config.Save(cfg); err != nil {
-			log.Printf("[WARN] Failed to save config: %v", err)
+			logger.Warn("Failed to save config: %v", err)
 		} else {
-			log.Printf("[INFO] Saved default username %s to config", user)
+			logger.Boot("Saved default username %s to config", user)
 		}
 	}
 
@@ -73,8 +72,8 @@ func runDaemon(cmd *cobra.Command, args []string) {
 		autoConnect = autoConnectFlag
 	}
 
-	log.Printf("[INFO] Starting kawaii-wify for user: %s (interval: %s, keepalive: %t, auto_connect: %t)", 
-		user, cfg.Interval(), keepalive, autoConnect)
+	logger.Boot("Starting kawaii-wify daemon (PID: %d, user: %s, interval: %s, keepalive: %t, auto_connect: %t)", 
+		os.Getpid(), user, cfg.Interval(), keepalive, autoConnect)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -82,7 +81,7 @@ func runDaemon(cmd *cobra.Command, args []string) {
 	// ipc listener
 	listener, err := ipc.Listen()
 	if err != nil {
-		log.Fatalf("[FATAL] Cannot start IPC Listener: %v", err)
+		logger.Fatal("Cannot start IPC Listener: %v", err)
 	}
 	defer listener.Close()
 
@@ -91,15 +90,15 @@ func runDaemon(cmd *cobra.Command, args []string) {
 
 	go func() {
 		if err := ipc.Serve(ctx, cancel, listener, eng); err != nil {
-			log.Printf("[WARN] IPC server stopped: %v", err)
+			logger.Warn("IPC server stopped: %v", err)
 		}
 	}()
 
 	if err := eng.Run(ctx, cfg.Interval()); err != nil && err != context.Canceled {
-		log.Fatalf("[FATAL] Engine crashed: %v", err)
+		logger.Fatal("Engine crashed: %v", err)
 	}
 
-	log.Println("[INFO] kawaii-wify gracefully stopped.")
+	logger.Boot("kawaii-wify gracefully stopped")
 }
 
 func init() {

@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"sync"
 	"time"
 
 	"github.com/obliviousorion/kawaii-wify/internal/auth"
+	"github.com/obliviousorion/kawaii-wify/internal/logger"
 )
 
 const (
@@ -75,7 +75,7 @@ func (e *Engine) Run(ctx context.Context, interval time.Duration) error {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("[INFO] Shutting down the engine")
+			logger.Boot("Engine shutdown requested")
 			return ctx.Err()
 
 		case <-ticker.C:
@@ -83,8 +83,8 @@ func (e *Engine) Run(ctx context.Context, interval time.Duration) error {
 				e.tick(ctx)
 			}
 
-		case respChan := <- e.triggerChan:
-			log.Printf("[INFO] Check triggered by IPC protocol")
+		case respChan := <-e.triggerChan:
+			logger.IPC("Check triggered by IPC client")
 			err := e.tick(ctx)
 			if respChan != nil {
 				respChan <- err
@@ -96,75 +96,74 @@ func (e *Engine) Run(ctx context.Context, interval time.Duration) error {
 
 // Main Tick implementation for the Engine
 func (e *Engine) tick(ctx context.Context) error {
-    
+	if e.IsPaused() {
+		return nil
+	}
 
-    if e.IsPaused() {
-        return nil
-    }
-	
 	e.updateLastProbe()
-	
-    if e.inCooldown() {
-        return ErrCooldown
-    }
 
-    isCaptive, magicToken, err := auth.Probe(ctx, e.client)
-    if err != nil {
-        if e.State() != StateOffline {
-            log.Printf("[INFO] Network unreachable, transitioning to offline: %v", err)
-            e.transition(StateOffline)
-        }
-        return fmt.Errorf("probe failed: %w", err)
-    }
+	if e.inCooldown() {
+		return ErrCooldown
+	}
 
-    if !isCaptive {
-        e.transition(StateOnline)
-        if e.keepalive {
-            token := e.SessionToken()
-            if token != "" {
-                if err := auth.Keepalive(ctx, e.client, token); err != nil {
-                    log.Printf("[WARN] Keepalive failed: %v", err)
-                    return err
-                }
-                log.Printf("[INFO] Keepalive successful")
-            }
-        }
-        return nil
-    }
+	isCaptive, magicToken, err := auth.Probe(ctx, e.client)
+	if err != nil {
+		if e.State() != StateOffline {
+			logger.Net("Network unreachable, transitioning to offline: %v", err)
+			e.transition(StateOffline, "Unreachable")
+		}
+		return fmt.Errorf("probe failed: %w", err)
+	}
 
-    if isCaptive {
-        e.transition(StateCaptive)
+	if !isCaptive {
+		e.transition(StateOnline)
+		if e.keepalive {
+			token := e.SessionToken()
+			if token != "" {
+				if err := auth.Keepalive(ctx, e.client, token); err != nil {
+					logger.Warn("Keepalive ping failed: %v", err)
+					return err
+				}
+				// Normal Keepalive HTTP 200 is SILENT (Zero Periodic Noise)
+			}
+		}
+		return nil
+	}
 
-        if e.FailureCount() >= MaxAuthFailures {
-            e.transition(StateCooldown)
-            return ErrMaxAuthFailures
-        }
+	if isCaptive {
+		e.transition(StateCaptive)
 
-        if err := auth.Prime(ctx, e.client, magicToken); err != nil {
-            log.Printf("[WARN] Gateway priming failed, will retry on next tick: %v", err)
-            return err
-        }
+		if e.FailureCount() >= MaxAuthFailures {
+			e.transition(StateCooldown, "MaxFailuresExceeded")
+			return ErrMaxAuthFailures
+		}
 
-        sessionToken, err := auth.Login(ctx, e.client, e.username, e.password, magicToken)
-        if err != nil {
-            currentFails := e.incrementFailures()
-            log.Printf("[ERROR] Login failed (attempt %d/%d): %v", currentFails, MaxAuthFailures, err)
-            if currentFails >= MaxAuthFailures {
-                e.transition(StateCooldown)
-                e.mu.Lock()
-                e.paused = true
-                e.mu.Unlock()
-                log.Println("[WARN] Repeated authentication failures: pausing engine to protect account from lockout. Update credentials via 'kawaii-wify login' and run 'kawaii-wify connect'.")
-            }
-            return err
-        }
+		if err := auth.Prime(ctx, e.client, magicToken); err != nil {
+			logger.Warn("Gateway priming failed, will retry on next tick: %v", err)
+			return err
+		}
+		logger.Auth("Gateway primed (magic: %s)", magicToken)
 
-        e.setSessionToken(sessionToken)
-        log.Printf("[SUCCESS] Logged in! Session token: %s", sessionToken)
-        e.transition(StateOnline)
-    }
+		sessionToken, err := auth.Login(ctx, e.client, e.username, e.password, magicToken)
+		if err != nil {
+			currentFails := e.incrementFailures()
+			logger.Error("Login failed (attempt %d/%d): %v", currentFails, MaxAuthFailures, err)
+			if currentFails >= MaxAuthFailures {
+				e.transition(StateCooldown, "MaxFailuresExceeded")
+				e.mu.Lock()
+				e.paused = true
+				e.mu.Unlock()
+				logger.Warn("Repeated authentication failures: pausing engine to protect account from lockout. Update credentials via 'kawaii-wify login' and run 'kawaii-wify connect'.")
+			}
+			return err
+		}
 
-    return nil
+		e.setSessionToken(sessionToken)
+		logger.Auth("Login successful (user: %s, session: %s)", e.username, sessionToken)
+		e.transition(StateOnline)
+	}
+
+	return nil
 }
 
 // State Controllers for IPC
@@ -198,7 +197,7 @@ func (e *Engine) Disconnect() {
 	token := e.sessionToken
 	e.paused = true
 	e.sessionToken = ""
-	e.transitionLocked(StateOffline)
+	e.transitionLocked(StateOffline, "UserPaused")
 	e.mu.Unlock()
 
 	if token != "" {
@@ -206,22 +205,22 @@ func (e *Engine) Disconnect() {
 		defer cancel()
 
 		if err := auth.Logout(ctx, e.client, token); err != nil {
-			log.Printf("[WARN] Gateway logout request failed: %v", err)
+			logger.Warn("Remote FortiGate logout failed: %v", err)
 		} else {
-			log.Printf("[INFO] Gateway session successfully revoked on FortiGate")
+			logger.Auth("Remote FortiGate session %s revoked", token)
 		}
 	}
 
-	log.Printf("[INFO] Disconnected and Engine paused by user command")
+	logger.State("Engine paused and offline by user command")
 }
 
 
 // Accessor Methods for the IPC
 func (e *Engine) TriggerCheck() {
 	select {
-		case e.triggerChan <- nil:
-		log.Printf("[INFO] Background Check Triggered")
-		default:
+	case e.triggerChan <- nil:
+		logger.IPC("Background check triggered")
+	default:
 	}
 }
 
@@ -281,18 +280,23 @@ func (e *Engine) setSessionToken(token string) {
 }
 
 // transition safely updates the engine state and handles entry actions.
-func (e *Engine) transition(next State) {
+func (e *Engine) transition(next State, reason ...string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	e.transitionLocked(next)
+	e.transitionLocked(next, reason...)
 }
 
-func (e *Engine) transitionLocked(next State) {
+func (e *Engine) transitionLocked(next State, reason ...string) {
 	if e.state == next {
 		return
 	}
 
-	log.Printf("[STATE] Transition: %s -> %s", e.state, next)
+	var r string
+	if len(reason) > 0 {
+		r = reason[0]
+	}
+
+	logger.Transition(e.state, next, r)
 	e.state = next
 
 	// Reset the circuit breaker on a successful connection
@@ -324,14 +328,14 @@ func (e *Engine) inCooldown() bool {
 
 	// Has enough time elapsed?
 	if time.Since(e.cooldownStart) >= CooldownDuration {
-		log.Println("[ENGINE] Cooldown elapsed. Resetting circuit breaker.")
+		logger.State("Cooldown elapsed, resetting circuit breaker")
 		e.failCount = 0
-		e.transitionLocked(StateOffline)
+		e.transitionLocked(StateOffline, "CooldownElapsed")
 		return false // Cooldown is over, let the tick proceed!
 	}
 
 	waitTime := CooldownDuration - time.Since(e.cooldownStart)
-	log.Printf("[INFO] Engine in cooldown. Retrying in %s", waitTime.Round(time.Second))
+	logger.Warn("Engine in cooldown, retrying in %s", waitTime.Round(time.Second))
 	return true // Still in cooldown, skip this tick
 }
 
