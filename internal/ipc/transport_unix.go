@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	ErrDaemonAlreadyRunning = errors.New("deamon is already running on this socket")
+	ErrDaemonAlreadyRunning = errors.New("daemon is already running on this socket")
 )
 
 func socketPath() string {
@@ -38,7 +38,7 @@ func Listen() (net.Listener, error) {
 	}
 	listener, err := net.Listen("unix", path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to bin unix socket: %w", err)
+		return nil, fmt.Errorf("failed to bind unix socket: %w", err)
 	}
 
 	if err := os.Chmod(path, 0600); err != nil {

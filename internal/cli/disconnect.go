@@ -1,7 +1,8 @@
 package cli
 
 import (
-	"log"
+	"fmt"
+	"os"
 
 	"github.com/obliviousorion/kawaii-wify/internal/ipc"
 	"github.com/spf13/cobra"
@@ -21,19 +22,21 @@ func init() {
 func runDisconnect(cmd *cobra.Command, args []string) {
 	client, err := ipc.NewClient()
 	if err != nil {
-		log.Fatalf("[FATAL] %v", err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
 	}
-
-	log.Printf("[INFO] Disconnect request engaged: %v", err)
+	defer client.Close()
 
 	resp, err := client.Disconnect()
 	if err != nil {
-		log.Fatalf("[ERROR] Disconnect request failed: %v", err)
+		fmt.Fprintf(os.Stderr, "Error: disconnect request failed: %v\n", err)
+		os.Exit(1)
 	}
 
 	if !resp.Success {
-		log.Fatalf("[ERROR] %s", resp.Message)
+		fmt.Fprintf(os.Stderr, "✕ %s\n", resp.Message)
+		os.Exit(1)
 	}
 
-	log.Printf("[SUCCESS] %s", resp.Message)
+	fmt.Printf("✓ %s\n", resp.Message)
 }
