@@ -48,7 +48,7 @@ func NewDaemonService(controller Controller) *DaemonService {
 // func (s *DaemonService) MethodName(req RequestType, resp *ResponseType) error
 
 func (s *DaemonService) GetStatus(req StatusRequest, resp *StatusResponse) error {
-	state := string(s.controller.State())
+	state := s.controller.State().String()
 	if s.controller.IsPaused() {
 		state = StatePaused
 	}
