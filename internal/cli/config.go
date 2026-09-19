@@ -76,8 +76,11 @@ func runConfigSet(cmd *cobra.Command, args []string) {
 	switch key {
 	case "check_interval", "interval":
 		d, err := time.ParseDuration(val)
-		if err != nil || d <= 0 {
+		if err != nil {
 			log.Fatalf("[ERROR] Invalid duration format '%s'. Use values like '5s', '10s', or '1m'.", val)
+		}
+		if d < 2*time.Second {
+			log.Fatalf("[ERROR] Check interval must be at least 2s (got %s)", val)
 		}
 		cfg.CheckInterval = val
 	case "username":
