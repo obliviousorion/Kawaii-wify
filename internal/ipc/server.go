@@ -1,7 +1,11 @@
 package ipc
 
 import (
+	"context"
 	"fmt"
+	"log"
+	"net"
+	"net/rpc"
 	"time"
 
 	"github.com/obliviousorion/kawaii-wify/internal/engine"
@@ -54,7 +58,7 @@ func (s *DaemonService) GetStatus(req StatusRequest, resp *StatusResponse) error
 	resp.SessionToken = s.controller.SessionToken()
 	resp.Paused = s.controller.IsPaused()
 	resp.LastProbe = s.controller.LastProbe()
-	resp.Uptime = s.controller.Uptime()
+	resp.Uptime = s.controller.Uptime().Truncate(time.Second)
 
 	return nil
 }
@@ -81,4 +85,33 @@ func (s *DaemonService) Disconnect(req ActionRequest, resp *ActionResponse) erro
 	resp.Success = true
 	resp.Message = "Session disconnected and Daemon Paused"
 	return nil
+}
+
+// Serve starts the RPC server on the listener and blocks until ctx is canceled.
+func Serve(ctx context.Context, listener net.Listener, controller Controller) error {
+    server := rpc.NewServer()
+    service := NewDaemonService(controller)
+
+    if err := server.RegisterName("Daemon", service); err != nil {
+        return fmt.Errorf("failed to register daemon rpc service: %w", err)
+    }
+
+    go func() {
+        <-ctx.Done()
+        _ = listener.Close()
+    }()
+
+    for {
+        conn, err := listener.Accept()
+        if err != nil {
+            select {
+            case <-ctx.Done():
+                return nil
+            default:
+                log.Printf("[WARN] IPC accept error: %v", err)
+                continue
+            }
+        }
+        go server.ServeConn(conn)
+    }
 }
