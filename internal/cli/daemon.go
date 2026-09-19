@@ -17,6 +17,7 @@ import (
 
 var (
 	userOverride    string
+	gatewayOverride string
 	keepaliveFlag   bool
 	noKeepalive     bool
 	autoConnectFlag bool
@@ -58,6 +59,12 @@ func runDaemon(cmd *cobra.Command, args []string) {
 		}
 	}
 
+	if gatewayOverride != "" {
+		cfg.Gateway = gatewayOverride
+	}
+	gatewayEndpoint := cfg.GatewayEndpoint()
+	gatewayHost := cfg.GatewayHost()
+
 	keepalive := cfg.Keepalive
 	if cmd.Flags().Changed("no-keepalive") {
 		keepalive = false
@@ -72,8 +79,8 @@ func runDaemon(cmd *cobra.Command, args []string) {
 		autoConnect = autoConnectFlag
 	}
 
-	logger.Boot("Starting kawaii-wify daemon (PID: %d, user: %s, interval: %s, keepalive: %t, auto_connect: %t)", 
-		os.Getpid(), user, cfg.Interval(), keepalive, autoConnect)
+	logger.Boot("Starting kawaii-wify daemon (PID: %d, user: %s, gateway: %s, interval: %s, keepalive: %t, auto_connect: %t)", 
+		os.Getpid(), user, gatewayEndpoint, cfg.Interval(), keepalive, autoConnect)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
@@ -85,8 +92,8 @@ func runDaemon(cmd *cobra.Command, args []string) {
 	}
 	defer listener.Close()
 
-	client := auth.NewClient()
-	eng := engine.New(client, user, pass, keepalive, autoConnect)
+	gw := auth.NewGateway(gatewayEndpoint, gatewayHost)
+	eng := engine.New(gw, user, pass, keepalive, autoConnect)
 
 	go func() {
 		if err := ipc.Serve(ctx, cancel, listener, eng); err != nil {
@@ -103,6 +110,7 @@ func runDaemon(cmd *cobra.Command, args []string) {
 
 func init() {
 	daemonCmd.Flags().StringVarP(&userOverride, "user", "u", "", "Set or override kawaii-wify username")
+	daemonCmd.Flags().StringVar(&gatewayOverride, "gateway", "", "Override FortiOS captive portal gateway endpoint (e.g. fw.bits-pilani.ac.in:8090)")
 	daemonCmd.Flags().BoolVar(&keepaliveFlag, "keepalive", true, "Enable periodic keepalive pings")
 	daemonCmd.Flags().BoolVar(&noKeepalive, "no-keepalive", false, "Disable periodic keepalive pings")
 	daemonCmd.Flags().BoolVar(&autoConnectFlag, "auto-connect", true, "Automatically connect and authenticate on launch")

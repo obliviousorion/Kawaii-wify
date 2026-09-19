@@ -122,6 +122,7 @@ Kawaii-Wify supports persistent user configuration stored in your standard user 
 ```json
 {
   "username": "F20230814",
+  "gateway": "fw.bits-pilani.ac.in:8090",
   "check_interval": "10s",
   "keepalive": true,
   "auto_connect": true
@@ -131,6 +132,7 @@ Kawaii-Wify supports persistent user configuration stored in your standard user 
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `username` | string | `""` | Active student ID / campus login ID. Automatically saved on login/override. |
+| `gateway` | string | `"fw.bits-pilani.ac.in:8090"` | FortiOS captive portal endpoint (automatically appends port `:8090` if omitted). |
 | `check_interval` | string | `"10s"` | Frequency of probe and keepalive checks (parsed as a Go duration, e.g. `"5s"`, `"10s"`, `"1m"`). |
 | `keepalive` | bool | `true` | When enabled, sends periodic keepalive pings while online. When disabled, relies purely on automatic re-login upon connection drops. |
 | `auto_connect` | bool | `true` | When enabled, daemon automatically connects on startup. When false, daemon starts in paused state. |
@@ -168,6 +170,9 @@ kawaii-wify daemon
 
 # Override active user for this session
 kawaii-wify daemon -u F20230814
+
+# Override gateway endpoint for this session
+kawaii-wify daemon --gateway 172.16.100.1:8090
 
 # Run without keepalive pings (only auto-relies on disconnect detection)
 kawaii-wify daemon --no-keepalive
@@ -253,9 +258,14 @@ Inspect and update settings without manually editing JSON files:
 kawaii-wify config get
 
 # View a specific setting
+kawaii-wify config get gateway
 kawaii-wify config get check_interval
 kawaii-wify config get username
 kawaii-wify config get keepalive
+
+# Update gateway endpoint (or use 'default' to reset)
+kawaii-wify config set gateway fw.goa.bits-pilani.ac.in
+kawaii-wify config set gateway default
 
 # Update polling interval (validated against Go durations)
 kawaii-wify config set check_interval 15s
@@ -274,8 +284,8 @@ kawaii-wify config set username F20230814
 FortiGate's embedded port 8090 web server has specific network quirks:
 
 - **HTTP/1.1 Enforcement**: Standard HTTP clients negotiate HTTP/2 ALPN by default over TLS. The FortiOS micro-server resets connections when HTTP/2 is offered (`curl: (52) Empty reply from server`). Kawaii-Wify suppresses ALPN negotiation by setting `TLSNextProto` to an empty map, forcing reliable HTTP/1.1 communication.
-- **Scoped Certificate Verification**: Instead of disabling TLS checks globally with `InsecureSkipVerify: true`, Kawaii-Wify uses a custom `VerifyConnection` callback to verify that the remote certificate Common Name or DNS name matches `fw.bits-pilani.ac.in`.
-- **Referer Pinning & User-Agent**: The FortiOS gateway requires requests to include a browser `User-Agent` and a matching `Referer: https://fw.bits-pilani.ac.in:8090/fgtauth?<token>` header.
+- **Scoped Certificate Verification**: Instead of disabling TLS checks globally with `InsecureSkipVerify: true`, Kawaii-Wify uses a custom `VerifyConnection` callback to dynamically verify that the remote certificate Common Name or DNS name matches the configured gateway target host (defaulting to `fw.bits-pilani.ac.in`).
+- **Referer Pinning & User-Agent**: The FortiOS gateway requires requests to include a browser `User-Agent` and a matching `Referer: https://<gateway>/fgtauth?<token>` header.
 - **Isolated Transport Failure Retries**: Gateway priming errors retry on the next tick without consuming authentication attempts, preventing false-positive account lockouts during Wi-Fi drops.
 - **Cross-Platform IPC Layer**: CLI-to-daemon communication uses standard Go `net/rpc` over native local IPC transports:
   - **Windows**: Named Pipes (`\\.\pipe\kawaii-wify`) via `github.com/Microsoft/go-winio`.

@@ -42,6 +42,7 @@ func runConfigGet(cmd *cobra.Command, args []string) {
 
 	if len(args) == 0 {
 		fmt.Printf("username: %s\n", cfg.Username)
+		fmt.Printf("gateway: %s\n", cfg.GatewayEndpoint())
 		fmt.Printf("check_interval: %s\n", cfg.CheckInterval)
 		fmt.Printf("keepalive: %t\n", cfg.Keepalive)
 		fmt.Printf("auto_connect: %t\n", cfg.AutoConnect)
@@ -52,6 +53,8 @@ func runConfigGet(cmd *cobra.Command, args []string) {
 	switch key {
 	case "username":
 		fmt.Println(cfg.Username)
+	case "gateway":
+		fmt.Println(cfg.GatewayEndpoint())
 	case "check_interval", "interval":
 		fmt.Println(cfg.CheckInterval)
 	case "keepalive":
@@ -59,7 +62,7 @@ func runConfigGet(cmd *cobra.Command, args []string) {
 	case "auto_connect", "autoconnect":
 		fmt.Println(cfg.AutoConnect)
 	default:
-		log.Fatalf("[ERROR] Unknown configuration key '%s'. Supported keys: username, check_interval, keepalive, auto_connect", args[0])
+		log.Fatalf("[ERROR] Unknown configuration key '%s'. Supported keys: username, gateway, check_interval, keepalive, auto_connect", args[0])
 	}
 }
 
@@ -74,6 +77,14 @@ func runConfigSet(cmd *cobra.Command, args []string) {
 	val := args[1]
 
 	switch key {
+	case "gateway":
+		if strings.ToLower(val) == "default" {
+			cfg.Gateway = config.DefaultGateway
+		} else {
+			cfg.Gateway = val
+			cfg.Gateway = cfg.GatewayEndpoint()
+		}
+		val = cfg.Gateway
 	case "check_interval", "interval":
 		d, err := time.ParseDuration(val)
 		if err != nil {
@@ -99,7 +110,7 @@ func runConfigSet(cmd *cobra.Command, args []string) {
 		}
 		cfg.AutoConnect = b
 	default:
-		log.Fatalf("[ERROR] Unknown configuration key '%s'. Supported keys: username, check_interval, keepalive, auto_connect", args[0])
+		log.Fatalf("[ERROR] Unknown configuration key '%s'. Supported keys: username, gateway, check_interval, keepalive, auto_connect", args[0])
 	}
 
 	if err := config.Save(cfg); err != nil {
