@@ -299,8 +299,9 @@ A cross-platform `Makefile` is provided for common development and production ta
 # Automatically build for your current host OS (Windows, Linux, or macOS)
 make
 
-# Compile and install globally to system Go binary path
+# Compile and install globally to system Go binary path (~/go/bin)
 make install
+# (Ensure ~/go/bin is in your PATH: e.g. `fish_add_path ~/go/bin` for Fish, or `export PATH="$HOME/go/bin:$PATH"` for Bash/Zsh)
 
 # Automatically build and run for current host OS with optional flags
 make run ARGS="daemon"
