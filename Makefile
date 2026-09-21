@@ -33,7 +33,7 @@ build:
 # Compiles and installs binary globally to Go binary directory
 install:
 	@go install -ldflags="$(LDFLAGS)" ./cmd/kawaii-wify
-	@echo Installed $(BINARY_NAME) v$(VERSION) to Go binary path.
+	@echo "Installed $(BINARY_NAME) v$(VERSION) to $$(GOBIN=$$(go env GOBIN 2>/dev/null); [ -n \"$$GOBIN\" ] && echo \"$$GOBIN\" || echo \"$$(go env GOPATH)/bin\")/$(BINARY_NAME)"
 
 # Automatically builds and runs for current OS with flags support (e.g. make run ARGS="...")
 run: build
