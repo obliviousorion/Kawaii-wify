@@ -21,9 +21,22 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            val keystoreFile = file("release.jks")
+            if (keystoreFile.exists()) {
+                storeFile = keystoreFile
+                storePassword = (project.findProperty("KEYSTORE_PASSWORD") as? String) ?: "kawaiiwify"
+                keyAlias = (project.findProperty("KEY_ALIAS") as? String) ?: "kawaiiwify"
+                keyPassword = (project.findProperty("KEY_PASSWORD") as? String) ?: "kawaiiwify"
+            }
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

@@ -4,6 +4,21 @@ A lightweight background session manager and automated login daemon for FortiOS 
 
 ---
 
+## 📥 Downloads (Latest Release)
+
+Pre-built binaries and native packages are available directly from the [GitHub Releases](https://github.com/obliviousorion/Kawaii-wify/releases/latest) page:
+
+| Platform | Package | Architecture | Direct Download |
+| :--- | :--- | :--- | :--- |
+| 📱 **Android** | Native App (`.apk`) | Android 8.0+ (ARM64 / x86_64) | [**kawaii-wify-android.apk**](https://github.com/obliviousorion/Kawaii-wify/releases/latest/download/kawaii-wify-android.apk) |
+| 🐧 **Linux** | Standalone Binary | x86_64 / amd64 | [**kawaii-wify-linux-amd64**](https://github.com/obliviousorion/Kawaii-wify/releases/latest/download/kawaii-wify-linux-amd64) |
+| 🐧 **Linux** | Standalone Binary | ARM64 / aarch64 | [**kawaii-wify-linux-arm64**](https://github.com/obliviousorion/Kawaii-wify/releases/latest/download/kawaii-wify-linux-arm64) |
+| 🪟 **Windows** | Executable (`.exe`) | x86_64 / amd64 | [**kawaii-wify-windows-amd64.exe**](https://github.com/obliviousorion/Kawaii-wify/releases/latest/download/kawaii-wify-windows-amd64.exe) |
+| 🍏 **macOS** | Universal / Apple Silicon | M1 / M2 / M3 / M4 (arm64) | [**kawaii-wify-darwin-arm64**](https://github.com/obliviousorion/Kawaii-wify/releases/latest/download/kawaii-wify-darwin-arm64) |
+| 🍏 **macOS** | Intel Binary | x86_64 (amd64) | [**kawaii-wify-darwin-amd64**](https://github.com/obliviousorion/Kawaii-wify/releases/latest/download/kawaii-wify-darwin-amd64) |
+
+---
+
 ## Overview
 
 Campus Wi-Fi networks secured by FortiGate firewalls require users to authenticate via a captive portal web interface. In active campus environments, lease durations expire frequently, connections drop during access point roaming, and devices are disconnected silently.
