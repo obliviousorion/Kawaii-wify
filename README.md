@@ -96,7 +96,10 @@ kawaii-wify status
 # 4. View daemon logs
 kawaii-wify logs
 
-# 5. Stop the background daemon
+# 5. (Optional) Enable automatic startup on system boot/login
+kawaii-wify autostart enable
+
+# 6. Stop the background daemon
 kawaii-wify stop
 ```
 
@@ -113,6 +116,9 @@ kawaii-wify stop
 | `kawaii-wify stop` | Gracefully shuts down the background daemon. |
 | `kawaii-wify logs` | Displays the most recent daemon output lines (`-n <count>`, `-p` for path). |
 | `kawaii-wify logout` | Purges stored credentials from the keyring. |
+| `kawaii-wify autostart enable` | Enables background daemon autostart on system boot/login. |
+| `kawaii-wify autostart disable` | Disables background daemon autostart on system boot/login. |
+| `kawaii-wify autostart status` | Checks whether background autostart is currently enabled. |
 | `kawaii-wify config get` | Displays current configuration parameters. |
 | `kawaii-wify config set <key> <val>` | Updates configuration (`gateway`, `check_interval`, `keepalive`). |
 
