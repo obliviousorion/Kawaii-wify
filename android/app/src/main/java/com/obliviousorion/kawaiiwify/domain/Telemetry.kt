@@ -10,5 +10,7 @@ data class Telemetry(
     val latencyMs: Long = 0L,
     val sessionToken: String = "",
     val authFailures: Int = 0,
-    val activeSsid: String? = null
+    val activeSsid: String? = null,
+    val memoryUsageMb: String = "8.2 MB",
+    val cpuStatus: String = "Idle (<1%)"
 )
