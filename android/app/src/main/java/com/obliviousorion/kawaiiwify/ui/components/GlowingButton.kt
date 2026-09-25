@@ -34,6 +34,7 @@ fun GlowingButton(
     enabled: Boolean = true
 ) {
     val isOnline = state is EngineState.Online
+    val isPaused = state is EngineState.Paused
     val isCooldown = state is EngineState.Cooldown
     val isCaptive = state is EngineState.Captive
 
@@ -41,6 +42,7 @@ fun GlowingButton(
         targetValue = when {
             isCooldown -> CrimsonRed
             isOnline -> NeonLavender
+            isPaused -> CyberCyan
             isCaptive -> AlertOrange
             else -> SakuraPink
         },
@@ -50,7 +52,8 @@ fun GlowingButton(
 
     val buttonText = when {
         isCooldown -> "IN COOLDOWN (${(state as EngineState.Cooldown).remainingSeconds}s)"
-        isOnline -> "DISCONNECT"
+        isOnline -> "DISCONNECT & LOGOUT"
+        isPaused -> "RESUME DAEMON"
         isCaptive -> "AUTHENTICATING..."
         else -> "CONNECT TO CAMPUS"
     }

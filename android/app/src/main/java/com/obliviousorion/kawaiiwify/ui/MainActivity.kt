@@ -60,6 +60,18 @@ class MainActivity : ComponentActivity() {
                             action = Constants.ACTION_DISCONNECT
                         }
                         startService(intent)
+                    },
+                    onPause = {
+                        val intent = Intent(this, KeepaliveForegroundService::class.java).apply {
+                            action = Constants.ACTION_PAUSE
+                        }
+                        startService(intent)
+                    },
+                    onResume = {
+                        val intent = Intent(this, KeepaliveForegroundService::class.java).apply {
+                            action = Constants.ACTION_RESUME
+                        }
+                        startService(intent)
                     }
                 )
             }
@@ -80,7 +92,9 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MainAppHost(
     onConnect: () -> Unit,
-    onDisconnect: () -> Unit
+    onDisconnect: () -> Unit,
+    onPause: () -> Unit,
+    onResume: () -> Unit
 ) {
     var selectedItem by remember { mutableStateOf<NavItem>(NavItem.Dashboard) }
     val items = listOf(NavItem.Dashboard, NavItem.Logs, NavItem.Settings)
@@ -126,6 +140,8 @@ fun MainAppHost(
                 engine = KawaiiApplication.instance.sessionEngine,
                 onConnectClick = onConnect,
                 onDisconnectClick = onDisconnect,
+                onPauseClick = onPause,
+                onResumeClick = onResume,
                 modifier = modifier
             )
             is NavItem.Logs -> LogsScreen(modifier = modifier)
