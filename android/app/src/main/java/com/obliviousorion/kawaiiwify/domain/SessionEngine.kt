@@ -164,6 +164,24 @@ class SessionEngine(
         Logger.log("STATE", "Engine manually activated (◕‿◕)✌", LogLevel.INFO)
     }
 
+    suspend fun pause() = mutex.withLock {
+        isPaused = true
+        transitionLocked(EngineState.Paused, "UserPausedDaemon")
+        Logger.log("STATE", "Kawaii-Wify daemon paused. Firewall session untouched.", LogLevel.WARN)
+    }
+
+    suspend fun resume(
+        network: Network?,
+        config: AppConfig,
+        credentials: Credentials?,
+        activeSsid: String?
+    ) = mutex.withLock {
+        isPaused = false
+        failCount = 0
+        transitionLocked(if (sessionToken.isNotEmpty()) EngineState.Online else EngineState.Offline, "UserResumedDaemon")
+        Logger.log("STATE", "Kawaii-Wify daemon resumed.", LogLevel.INFO)
+    }
+
     suspend fun disconnect(
         network: Network?,
         config: AppConfig
@@ -171,12 +189,12 @@ class SessionEngine(
         val currentToken = sessionToken
         isPaused = true
         sessionToken = ""
-        transitionLocked(EngineState.Offline, "UserPaused")
+        transitionLocked(EngineState.Offline, "UserLoggedOut")
 
         if (currentToken.isNotEmpty()) {
             auth.logout(network, config.gateway, currentToken)
         }
-        Logger.log("STATE", "Engine paused and offline by user request", LogLevel.WARN)
+        Logger.log("STATE", "Logged out from FortiGate firewall and offline.", LogLevel.WARN)
         updateTelemetry()
     }
 
