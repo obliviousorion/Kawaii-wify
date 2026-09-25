@@ -246,7 +246,7 @@ class KeepaliveForegroundService : Service() {
         val builder = NotificationCompat.Builder(this, Constants.NOTIFICATION_CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(content)
-            .setSmallIcon(R.drawable.wify_mascot_online)
+            .setSmallIcon(R.drawable.ic_stat_kawaii_wifi)
             .setLargeIcon(avatar)
             .setContentIntent(openPendingIntent)
             .setOngoing(true)
