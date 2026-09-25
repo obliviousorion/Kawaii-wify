@@ -54,6 +54,7 @@ class KeepaliveForegroundService : Service() {
         val request = NetworkRequest.Builder()
             .addTransportType(android.net.NetworkCapabilities.TRANSPORT_WIFI)
             .build()
+
         connectivityManager.registerNetworkCallback(request, networkCallback)
 
         startForegroundNotification()
