@@ -20,16 +20,25 @@ interface MascotThemeProvider {
     fun resolve(state: EngineState): MascotVisualState
 }
 
-object DefaultWifyChanProvider : MascotThemeProvider {
+object DefaultKawaiiWifyProvider : MascotThemeProvider {
     override fun resolve(state: EngineState): MascotVisualState {
         return when (state) {
             is EngineState.Online -> MascotVisualState(
                 drawableRes = R.drawable.wify_mascot_online,
                 statusTitle = "ONLINE & SECURED",
-                statusQuote = "\"Connection active! You're unblocked and online, senpai! (◕‿◕)✌\"",
+                statusQuote = "\"Connection active! Campus Wi-Fi secured and unblocked. (◕‿◕)✌\"",
                 auraColor = CyberCyan,
                 badgeText = "ONLINE",
                 badgeColor = CyberCyan
+            )
+
+            is EngineState.Paused -> MascotVisualState(
+                drawableRes = R.drawable.wify_mascot_offline,
+                statusTitle = "DAEMON PAUSED",
+                statusQuote = "\"Kawaii-Wify is paused. Your firewall session is untouched and active. (ᴗ˳ᴗ)\"",
+                auraColor = NeonLavender,
+                badgeText = "PAUSED",
+                badgeColor = NeonLavender
             )
 
             is EngineState.Captive -> MascotVisualState(
@@ -44,7 +53,7 @@ object DefaultWifyChanProvider : MascotThemeProvider {
             is EngineState.Cooldown -> MascotVisualState(
                 drawableRes = R.drawable.wify_mascot_offline,
                 statusTitle = "CIRCUIT BREAKER COOLDOWN",
-                statusQuote = "\"Whoa, senpai! Auth failed 3 times! Cooling down (${state.remainingSeconds}s) so your account won't get locked!\"",
+                statusQuote = "\"Auth failed 3 times! Cooling down (${state.remainingSeconds}s) to protect account from lockout.\"",
                 auraColor = CrimsonRed,
                 badgeText = "COOLDOWN",
                 badgeColor = CrimsonRed
@@ -53,7 +62,7 @@ object DefaultWifyChanProvider : MascotThemeProvider {
             is EngineState.Probing -> MascotVisualState(
                 drawableRes = R.drawable.wify_mascot_online,
                 statusTitle = "PROBING GATEWAY",
-                statusQuote = "\"Testing connectivity to BITS-Pilani gateway...\"",
+                statusQuote = "\"Testing connectivity to campus gateway...\"",
                 auraColor = SakuraPink,
                 badgeText = "PROBING",
                 badgeColor = SakuraPink
@@ -61,8 +70,8 @@ object DefaultWifyChanProvider : MascotThemeProvider {
 
             is EngineState.Offline -> MascotVisualState(
                 drawableRes = R.drawable.wify_mascot_offline,
-                statusTitle = "DAEMON SLEEPING",
-                statusQuote = "\"Zzz... Engine is resting. Tap CONNECT to wake me up! (ᴗ˳ᴗ)\"",
+                statusTitle = "DAEMON OFFLINE",
+                statusQuote = "\"Kawaii-Wify is resting. Tap CONNECT to authenticate. (ᴗ˳ᴗ)\"",
                 auraColor = NeonLavender,
                 badgeText = "OFFLINE",
                 badgeColor = NeonLavender
@@ -72,5 +81,5 @@ object DefaultWifyChanProvider : MascotThemeProvider {
 }
 
 object MascotRegistry {
-    var currentProvider: MascotThemeProvider = DefaultWifyChanProvider
+    var currentProvider: MascotThemeProvider = DefaultKawaiiWifyProvider
 }
