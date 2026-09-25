@@ -334,17 +334,21 @@ fun SettingsScreen(
                         )
                     )
 
-                    // Quick Gateway Preset Chips
+                    // Quick Gateway Preset Chips (with 'Other' chip)
+                    val standardGateways = listOf(
+                        "fw.bits-pilani.ac.in:8090" to "BITS Campus",
+                        "172.16.100.1:8090" to "Direct IP"
+                    )
+                    val isOtherGateway = gateway.isNotBlank() && gateway !in standardGateways.map { it.first }
+
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        listOf(
-                            "fw.bits-pilani.ac.in:8090" to "BITS Campus",
-                            "172.16.100.1:8090" to "Direct IP"
-                        ).forEach { (presetUrl, label) ->
+                        standardGateways.forEach { (presetUrl, label) ->
+                            val isSelected = gateway == presetUrl
                             SuggestionChip(
                                 onClick = {
                                     gateway = presetUrl
@@ -352,15 +356,33 @@ fun SettingsScreen(
                                 },
                                 label = { Text(label, style = Typography.labelSmall.copy(fontSize = 10.sp)) },
                                 colors = SuggestionChipDefaults.suggestionChipColors(
-                                    containerColor = SurfaceGlass,
-                                    labelColor = CyberCyan
+                                    containerColor = if (isSelected) CyberCyan.copy(alpha = 0.2f) else SurfaceGlass,
+                                    labelColor = if (isSelected) CyberCyan else TextSecondary
                                 ),
                                 border = SuggestionChipDefaults.suggestionChipBorder(
-                                    borderColor = if (gateway == presetUrl) CyberCyan else SurfaceBorder,
+                                    borderColor = if (isSelected) CyberCyan else SurfaceBorder,
                                     enabled = true
                                 )
                             )
                         }
+
+                        // "Other" chip - automatically selected if gateway is custom
+                        SuggestionChip(
+                            onClick = {
+                                if (!isOtherGateway) {
+                                    gateway = ""
+                                }
+                            },
+                            label = { Text("Other", style = Typography.labelSmall.copy(fontSize = 10.sp)) },
+                            colors = SuggestionChipDefaults.suggestionChipColors(
+                                containerColor = if (isOtherGateway) CyberCyan.copy(alpha = 0.2f) else SurfaceGlass,
+                                labelColor = if (isOtherGateway) CyberCyan else TextSecondary
+                            ),
+                            border = SuggestionChipDefaults.suggestionChipBorder(
+                                borderColor = if (isOtherGateway) CyberCyan else SurfaceBorder,
+                                enabled = true
+                            )
+                        )
                     }
                 }
 
@@ -605,26 +627,38 @@ fun SettingsScreen(
                     }
                 }
 
-                // Preset SSID suggestions
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    listOf("BITS-Pilani", "BITS-Hostel", "eduroam").forEach { preset ->
-                        if (!config.ssidWhitelist.contains(preset)) {
-                            SuggestionChip(
-                                onClick = {
-                                    val updated = config.ssidWhitelist + preset
-                                    coroutineScope.launch { prefManager.updateSsidWhitelist(updated) }
-                                },
-                                label = { Text("+ $preset", style = Typography.labelSmall.copy(fontSize = 10.sp)) },
-                                colors = SuggestionChipDefaults.suggestionChipColors(
-                                    containerColor = SurfaceGlass,
-                                    labelColor = TextSecondary
+                // Dynamic Preset SSID suggestions (BITS-STAFF, BITS-STUDENT)
+                val campusPresets = listOf("BITS-STAFF", "BITS-STUDENT")
+                val availableRecommendations = campusPresets.filter { it !in config.ssidWhitelist }
+
+                if (availableRecommendations.isNotEmpty()) {
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "Recommended (tap to add):",
+                            style = Typography.labelSmall.copy(color = TextMuted, fontSize = 10.sp)
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            availableRecommendations.forEach { preset ->
+                                SuggestionChip(
+                                    onClick = {
+                                        val updated = config.ssidWhitelist + preset
+                                        coroutineScope.launch { prefManager.updateSsidWhitelist(updated) }
+                                    },
+                                    label = { Text("+ $preset", style = Typography.labelSmall.copy(fontSize = 10.sp, color = CyberCyan)) },
+                                    colors = SuggestionChipDefaults.suggestionChipColors(
+                                        containerColor = SurfaceGlass
+                                    ),
+                                    border = SuggestionChipDefaults.suggestionChipBorder(
+                                        borderColor = CyberCyan.copy(alpha = 0.4f),
+                                        enabled = true
+                                    )
                                 )
-                            )
+                            }
                         }
                     }
                 }
