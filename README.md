@@ -246,6 +246,34 @@ Configuration is stored in user space:
 | `keepalive` | `true` | When true, pings the firewall keepalive endpoint periodically. |
 | `auto_connect` | `true` | When true, daemon starts monitoring immediately on launch. |
 
+### Recommended Configuration
+
+For the best experience, we recommend tuning your local settings for responsiveness and minimal overhead:
+
+- **Check Interval (`5s` or `3s`)**:
+  - **Balanced (`5s`)**: Recommended for most users. Provides a great balance of prompt captive portal detection while maintaining negligible CPU and network footprint:
+    ```bash
+    kawaii-wify config set check_interval 5s
+    ```
+  - **Snappy & Seamless (`3s`)**: Ideal if you  want near-instant re-authentication:
+    ```bash
+    kawaii-wify config set check_interval 3s
+    ```
+  > [!TIP]
+  > Setting `check_interval` lower than `3s` (the engine enforces a hard minimum of `2s`) is **not recommended**, as overly aggressive polling is unnecessary and may trigger firewall rate limiting.
+
+- **Keepalive (`false`)**:
+  - Having `keepalive` set to `false` is recommended. Disabling periodic keepalive pings reduces unnecessary traffic against the firewall, allowing the daemon to simply detect and re-authenticate sessions seamlessly as needed:
+    ```bash
+    kawaii-wify config set keepalive false
+    ```
+
+**Quick Setup (Recommended Configuration):**
+```bash
+kawaii-wify config set check_interval 5s
+kawaii-wify config set keepalive false
+```
+
 ---
 
 ## Building from Source
