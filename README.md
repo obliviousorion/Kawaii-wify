@@ -17,6 +17,42 @@ Pre-built binaries and native packages are available from the [GitHub Releases](
 
 ---
 
+## Installation
+
+### Automated Install (Recommended)
+
+**Linux and macOS:**
+Run the installation script in your terminal to automatically detect your CPU architecture, download the latest release binary, and install it to `/usr/local/bin`:
+```bash
+curl -fsSL https://raw.githubusercontent.com/obliviousorion/Kawaii-wify/main/install.sh | bash
+```
+
+**Windows:**
+Run the following command in PowerShell to download `kawaii-wify.exe` to `%LOCALAPPDATA%\kawaii-wify` and configure your user `PATH`:
+```powershell
+irm https://raw.githubusercontent.com/obliviousorion/Kawaii-wify/main/install.ps1 | iex
+```
+
+### Manual Installation
+
+- **Android**: Download `kawaii-wify-android.apk`, tap the downloaded file to install, and allow installation from unknown sources if prompted.
+- **Linux and macOS**:
+  1. Download the binary matching your CPU architecture from the Downloads table.
+  2. Mark the binary as executable:
+     ```bash
+     chmod +x kawaii-wify-*
+     ```
+  3. Move it to a directory in your PATH (e.g., `/usr/local/bin` or `~/.local/bin`):
+     ```bash
+     sudo mv kawaii-wify-* /usr/local/bin/kawaii-wify
+     ```
+- **Windows**:
+  1. Download `kawaii-wify-windows-amd64.exe`.
+  2. Place it in a folder of your choice (for example, `%LOCALAPPDATA%\kawaii-wify\kawaii-wify.exe`).
+  3. Add that directory to your User `PATH` environment variable so you can invoke `kawaii-wify` from Command Prompt or PowerShell.
+
+---
+
 ## Overview and How It Works
 
 Campus and enterprise Wi-Fi networks protected by FortiGate firewalls require users to authenticate through a captive portal web page. Sessions regularly expire due to lease timeouts, access point roaming, or idle disconnects.
