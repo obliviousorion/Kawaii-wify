@@ -189,12 +189,14 @@ class SessionEngine(
         val currentToken = sessionToken
         isPaused = true
         sessionToken = ""
-        transitionLocked(EngineState.Offline, "UserLoggedOut")
+        transitionLocked(EngineState.Offline, "UserDisconnected")
 
-        if (currentToken.isNotEmpty()) {
+        if (currentToken.isNotBlank()) {
             auth.logout(network, config.gateway, currentToken)
+            Logger.log("STATE", "Logged out from FortiGate firewall session ($currentToken).", LogLevel.WARN)
+        } else {
+            Logger.log("STATE", "Engine disconnected and paused (no active session token to revoke).", LogLevel.INFO)
         }
-        Logger.log("STATE", "Logged out from FortiGate firewall and offline.", LogLevel.WARN)
         updateTelemetry()
     }
 

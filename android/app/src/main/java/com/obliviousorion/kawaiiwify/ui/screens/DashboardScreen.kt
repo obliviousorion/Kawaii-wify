@@ -88,7 +88,7 @@ fun DashboardScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Pause Daemon (Keep Firewall Session)",
+                            text = "Pause Daemon",
                             style = Typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
                         )
                     }
@@ -112,7 +112,7 @@ fun DashboardScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Full Logout on Firewall",
+                            text = "Disconnect",
                             style = Typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
                         )
                     }
