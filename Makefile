@@ -79,11 +79,23 @@ build-darwin:
 android-build:
 	cd android && ./gradlew assembleDebug
 
+android-release:
+	cd android && ./gradlew assembleRelease
+	@mkdir -p bin/release
+	@cp android/app/build/outputs/apk/release/app-release.apk bin/release/$(BINARY_NAME)-android-$(VERSION).apk
+	@echo "Release APK built: bin/release/$(BINARY_NAME)-android-$(VERSION).apk"
+
 android-install:
 	cd android && ./gradlew installDebug
 
 android-clean:
 	cd android && ./gradlew clean
+
+# Compile release binaries for all platforms (Go CLI + Android APK)
+release-all: build-all android-release
+	@echo ""
+	@echo "All release artifacts built successfully in bin/release/:"
+	@ls -lh bin/release/
 
 clean:
 	@$(CLEAN_CMD)
