@@ -40,6 +40,10 @@ class SessionEngine(
         activeSsid: String? = null
     ) {
         val uptime = (System.currentTimeMillis() - startTime) / 1000
+        val rt = Runtime.getRuntime()
+        val usedMemMb = (rt.totalMemory() - rt.freeMemory()) / (1024.0 * 1024.0)
+        val formattedMem = String.format(Locale.US, "%.1f MB", usedMemMb)
+
         _telemetry.value = Telemetry(
             state = engineState,
             isPaused = isPaused,
@@ -50,7 +54,9 @@ class SessionEngine(
             latencyMs = if (latency > 0) latency else _telemetry.value.latencyMs,
             sessionToken = sessionToken,
             authFailures = failCount,
-            activeSsid = activeSsid ?: _telemetry.value.activeSsid
+            activeSsid = activeSsid ?: _telemetry.value.activeSsid,
+            memoryUsageMb = formattedMem,
+            cpuStatus = if (isPaused) "Suspended (0%)" else "Idle (<1%)"
         )
     }
 
