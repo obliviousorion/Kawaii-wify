@@ -5,6 +5,7 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
 import android.net.wifi.WifiInfo
+import android.net.wifi.WifiManager
 import android.os.Build
 import com.obliviousorion.kawaiiwify.core.LogLevel
 import com.obliviousorion.kawaiiwify.core.Logger
@@ -12,7 +13,9 @@ import com.obliviousorion.kawaiiwify.core.Logger
 class CaptivePortalCallback(
     private val context: Context,
     private val onNetworkEvent: (network: Network?, activeSsid: String?) -> Unit
-) : ConnectivityManager.NetworkCallback() {
+) : ConnectivityManager.NetworkCallback(
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) FLAG_INCLUDE_LOCATION_INFO else 0
+) {
 
     private val connectivityManager =
         context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
@@ -111,13 +114,25 @@ class CaptivePortalCallback(
     }
 
     private fun extractSsid(capabilities: NetworkCapabilities): String? {
+        // 1. Try NetworkCapabilities transportInfo (Android 10+)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val wifiInfo = capabilities.transportInfo as? WifiInfo
             val raw = wifiInfo?.ssid
-            if (raw != null && raw != "<unknown ssid>") {
+            if (!raw.isNullOrBlank() && raw != "<unknown ssid>" && raw != "0x") {
                 return raw.removeSurrounding("\"")
             }
         }
+
+        // 2. Fallback to WifiManager connectionInfo
+        try {
+            val wifiManager = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+            @Suppress("DEPRECATION")
+            val raw = wifiManager?.connectionInfo?.ssid
+            if (!raw.isNullOrBlank() && raw != "<unknown ssid>" && raw != "0x") {
+                return raw.removeSurrounding("\"")
+            }
+        } catch (_: Exception) {}
+
         return null
     }
 }

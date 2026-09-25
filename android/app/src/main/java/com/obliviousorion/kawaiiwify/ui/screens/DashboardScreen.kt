@@ -152,12 +152,18 @@ fun DashboardScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            val activeSsidDisplay: String = when {
+                !telemetry.activeSsid.isNullOrBlank() -> telemetry.activeSsid!!
+                telemetry.state is EngineState.Online || telemetry.state is EngineState.Captive -> "Connected (Wi-Fi)"
+                else -> "Not Connected"
+            }
+
             TelemetryCard(
                 title = "Active SSID",
-                value = telemetry.activeSsid ?: "Not Connected",
+                value = activeSsidDisplay,
                 icon = Icons.Default.Wifi,
                 modifier = Modifier.weight(1f),
-                accentColor = NeonLavender
+                accentColor = if (activeSsidDisplay != "Not Connected") NeonLavender else TextMuted
             )
             TelemetryCard(
                 title = "Account ID",

@@ -17,7 +17,7 @@ data class AppConfig(
     val checkIntervalSeconds: Int = Constants.DEFAULT_CHECK_INTERVAL_SECONDS,
     val keepaliveEnabled: Boolean = true,
     val autoConnectEnabled: Boolean = true,
-    val ssidWhitelist: Set<String> = setOf("BITS-Pilani", "BITS-Hostel"),
+    val ssidWhitelist: Set<String> = setOf("BITS-STAFF", "BITS-STUDENT"),
     val skipHostMismatch: Boolean = true
 )
 
@@ -32,12 +32,21 @@ class PreferencesManager(private val context: Context) {
             }
         }
         .map { prefs ->
+            val rawWhitelist = prefs[KEY_SSID_WHITELIST]
+            val sanitizedWhitelist = when {
+                rawWhitelist == null -> setOf("BITS-STAFF", "BITS-STUDENT")
+                rawWhitelist.contains("BITS-Hostel") || rawWhitelist.contains("BITS-Pilani") -> {
+                    (rawWhitelist - setOf("BITS-Hostel", "BITS-Pilani") + setOf("BITS-STAFF", "BITS-STUDENT")).toSet()
+                }
+                else -> rawWhitelist
+            }
+
             AppConfig(
                 gateway = prefs[KEY_GATEWAY] ?: Constants.DEFAULT_GATEWAY,
                 checkIntervalSeconds = prefs[KEY_INTERVAL] ?: Constants.DEFAULT_CHECK_INTERVAL_SECONDS,
                 keepaliveEnabled = prefs[KEY_KEEPALIVE] ?: true,
                 autoConnectEnabled = prefs[KEY_AUTOCONNECT] ?: true,
-                ssidWhitelist = prefs[KEY_SSID_WHITELIST] ?: setOf("BITS-Pilani", "BITS-Hostel"),
+                ssidWhitelist = sanitizedWhitelist,
                 skipHostMismatch = prefs[KEY_SKIP_HOST] ?: true
             )
         }
