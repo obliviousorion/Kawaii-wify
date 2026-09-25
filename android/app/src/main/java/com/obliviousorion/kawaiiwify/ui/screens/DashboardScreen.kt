@@ -7,6 +7,8 @@ import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -71,14 +73,14 @@ fun DashboardScreen(
             TelemetryCard(
                 title = "Session Uptime",
                 value = formattedUptime,
-                icon = "⏱",
+                icon = Icons.Default.Timer,
                 modifier = Modifier.weight(1f),
                 accentColor = CyberCyan
             )
             TelemetryCard(
                 title = "Gateway Latency",
                 value = if (telemetry.latencyMs > 0) "${telemetry.latencyMs} ms" else "--",
-                icon = "⚡",
+                icon = Icons.Default.Bolt,
                 modifier = Modifier.weight(1f),
                 accentColor = if (telemetry.latencyMs < 50) MintGreen else AlertOrange
             )
@@ -91,14 +93,14 @@ fun DashboardScreen(
             TelemetryCard(
                 title = "Active SSID",
                 value = telemetry.activeSsid ?: "Not Connected",
-                icon = "📶",
+                icon = Icons.Default.Wifi,
                 modifier = Modifier.weight(1f),
                 accentColor = NeonLavender
             )
             TelemetryCard(
                 title = "Account ID",
                 value = telemetry.username.ifEmpty { "None" },
-                icon = "🛡",
+                icon = Icons.Default.AccountCircle,
                 modifier = Modifier.weight(1f),
                 accentColor = SakuraPink
             )
@@ -111,7 +113,7 @@ fun DashboardScreen(
             TelemetryCard(
                 title = "Last Probe",
                 value = telemetry.lastProbeTime,
-                icon = "🔍",
+                icon = Icons.Default.Schedule,
                 modifier = Modifier.weight(1f),
                 accentColor = TextSecondary
             )
@@ -122,7 +124,7 @@ fun DashboardScreen(
                 } else {
                     "None"
                 },
-                icon = "🔑",
+                icon = Icons.Default.VpnKey,
                 modifier = Modifier.weight(1f),
                 accentColor = CyberCyan,
                 onCardClick = if (telemetry.sessionToken.isNotEmpty()) {
@@ -132,6 +134,32 @@ fun DashboardScreen(
                         Toast.makeText(context, "Session token copied!", Toast.LENGTH_SHORT).show()
                     }
                 } else null
+            )
+        }
+
+        // Real-Time App Device Resource Footprint Section
+        Text(
+            text = "APP RESOURCE FOOTPRINT",
+            style = Typography.labelSmall.copy(color = TextSecondary)
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            TelemetryCard(
+                title = "RAM Heap Usage",
+                value = telemetry.memoryUsageMb,
+                icon = Icons.Default.Memory,
+                modifier = Modifier.weight(1f),
+                accentColor = MintGreen
+            )
+            TelemetryCard(
+                title = "CPU Thread State",
+                value = telemetry.cpuStatus,
+                icon = Icons.Default.Speed,
+                modifier = Modifier.weight(1f),
+                accentColor = CyberCyan
             )
         }
     }
