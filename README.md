@@ -84,8 +84,8 @@ Kawaii-Wify automates the entire session lifecycle:
 ### Quick Start
 
 ```bash
-# 1. Save your credentials to the OS keyring
-kawaii-wify login -u YOUR_USERNAME
+# 1. Save your credentials to the OS keyring (interactive or one-liner)
+kawaii-wify login -u YOUR_USERNAME -p "YOUR_PASSWORD"
 
 # 2. Start the daemon in the background
 kawaii-wify start
@@ -103,24 +103,132 @@ kawaii-wify autostart enable
 kawaii-wify stop
 ```
 
+### Detailed CLI Examples
+
+#### 1. Authentication & Credentials (`login`, `logout`)
+
+Credentials are saved securely into your operating system's native hardware/credential manager (Windows Credential Manager, macOS Keychain, Linux Secret Service / DBus).
+
+```bash
+# Interactive prompt for both username and masked password
+kawaii-wify login
+
+# Provide username via flag and securely prompt for password
+kawaii-wify login -u f20210001
+
+# Non-interactive / one-liner login with both username and password flags
+kawaii-wify login -u f20210001 -p "MySecretPassword"
+
+# Clear active user credentials from system keyring
+kawaii-wify logout
+
+# Purge credentials for a specific username
+kawaii-wify logout -u f20210001
+```
+
+> [!NOTE]
+> If the background daemon is already running when you execute `kawaii-wify login`, it automatically triggers an immediate authentication request with the new credentials.
+
+#### 2. Managing the Daemon (`start`, `daemon`, `stop`)
+
+```bash
+# Start background daemon detached from terminal (survives closing the terminal)
+kawaii-wify start
+
+# Run daemon attached in foreground (useful for debugging and seeing live logs)
+kawaii-wify daemon
+
+# Start in paused state (monitors network, but skips automatic login until 'connect')
+kawaii-wify start -p
+# or: kawaii-wify start --no-auto-connect
+
+# Start with a custom gateway or username override
+kawaii-wify start -u f20210001 --gateway fw.bits-pilani.ac.in:8090
+
+# Start without periodic keepalive pings
+kawaii-wify start --no-keepalive
+
+# Gracefully stop the background daemon
+kawaii-wify stop
+```
+
+#### 3. Monitoring & Manual Control (`status`, `connect`, `disconnect`)
+
+```bash
+# Check daemon operational state, active user, uptime, lease timers, and error count
+kawaii-wify status
+
+# Force immediate network probe and login over IPC (without waiting for polling interval)
+kawaii-wify connect
+
+# Revoke current firewall lease session and pause background polling
+kawaii-wify disconnect
+```
+
+#### 4. Viewing Logs (`logs`)
+
+```bash
+# View the last 30 log lines (default)
+kawaii-wify logs
+
+# View a specific number of recent log lines
+kawaii-wify logs -n 100
+
+# Print the absolute path to the daemon log file
+kawaii-wify logs -p
+```
+
+#### 5. System Autostart (`autostart`)
+
+Configure `kawaii-wify` to launch silently in the background whenever you log into your operating system:
+
+```bash
+# Enable background autostart on system login
+kawaii-wify autostart enable
+# (alias: kawaii-wify autostart on)
+
+# Disable autostart
+kawaii-wify autostart disable
+# (alias: kawaii-wify autostart off)
+
+# Check current autostart status
+kawaii-wify autostart status
+```
+
+#### 6. Configuration Settings (`config`)
+
+```bash
+# Display all current configuration values
+kawaii-wify config get
+
+# Read a specific configuration setting
+kawaii-wify config get gateway
+kawaii-wify config get check_interval
+
+# Update configuration settings
+kawaii-wify config set check_interval 5s
+kawaii-wify config set gateway fw.bits-pilani.ac.in:8090
+kawaii-wify config set keepalive true
+kawaii-wify config set auto_connect true
+kawaii-wify config set username f20210001
+```
+
 ### Command Reference
 
-| Command | Description |
-| :--- | :--- |
-| `kawaii-wify login` | Enrolls credentials into the OS keyring interactively. |
-| `kawaii-wify start` | Starts the daemon in the background (survives terminal exit). |
-| `kawaii-wify daemon` | Runs the daemon attached in the foreground for real-time console logs. |
-| `kawaii-wify status` | Queries the running daemon for telemetry (state, user, uptime, lease). |
-| `kawaii-wify connect` | Triggers an immediate network probe and login over IPC. |
-| `kawaii-wify disconnect` | Disconnects the active session and pauses background probing. |
-| `kawaii-wify stop` | Gracefully shuts down the background daemon. |
-| `kawaii-wify logs` | Displays the most recent daemon output lines (`-n <count>`, `-p` for path). |
-| `kawaii-wify logout` | Purges stored credentials from the keyring. |
-| `kawaii-wify autostart enable` | Enables background daemon autostart on system boot/login. |
-| `kawaii-wify autostart disable` | Disables background daemon autostart on system boot/login. |
-| `kawaii-wify autostart status` | Checks whether background autostart is currently enabled. |
-| `kawaii-wify config get` | Displays current configuration parameters. |
-| `kawaii-wify config set <key> <val>` | Updates configuration (`gateway`, `check_interval`, `keepalive`). |
+| Command | Flags & Options | Description |
+| :--- | :--- | :--- |
+| `kawaii-wify login` | `-u, --user <name>`<br>`-p, --password <pass>` | Enrolls credentials into the OS keyring (interactive prompt or flags). |
+| `kawaii-wify logout` | `-u, --user <name>` | Purges credentials from OS keyring and disconnects active session. |
+| `kawaii-wify start` | `-u <name>`, `--gateway <endpoint>`<br>`-p, --paused`<br>`--[no-]keepalive`<br>`--[no-]auto-connect` | Spawns the daemon in the background detached from the current terminal. |
+| `kawaii-wify daemon` | `-u <name>`, `--gateway <endpoint>`<br>`-p, --paused`<br>`--[no-]keepalive`<br>`--[no-]auto-connect` | Runs the daemon attached in the foreground for real-time console logs. |
+| `kawaii-wify status` | — | Queries running daemon over IPC for state, user, uptime, and telemetry. |
+| `kawaii-wify connect` | — | Commands running daemon to probe network and authenticate immediately. |
+| `kawaii-wify disconnect`| — | Logs out active session from firewall gateway and pauses daemon. |
+| `kawaii-wify stop` | — | Gracefully terminates the running background daemon process. |
+| `kawaii-wify logs` | `-n, --lines <count>` (default: 30)<br>`-p, --path` | Displays recent daemon log output or prints absolute log file path. |
+| `kawaii-wify autostart` | `enable` (or `on`)<br>`disable` (or `off`)<br>`status` | Manages OS login autostart (Windows Registry, Linux XDG, macOS LaunchAgent). |
+| `kawaii-wify config get` | `[key]` | Displays all or a single configuration value. |
+| `kawaii-wify config set` | `<key> <val>` | Updates local config (`gateway`, `check_interval`, `keepalive`, `auto_connect`, `username`). |
 
 ---
 
