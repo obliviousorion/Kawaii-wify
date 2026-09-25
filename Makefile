@@ -1,5 +1,5 @@
 BINARY_NAME=kawaii-wify
-VERSION=0.1.0
+VERSION=0.1.2
 TARGET_ARCH ?= amd64
 LDFLAGS=-s -w -X main.Version=$(VERSION)
 

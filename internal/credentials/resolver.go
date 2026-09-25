@@ -48,12 +48,12 @@ func Resolve(flagUser, configUser string) (string, string, error) {
 		user = targetUser
 		pass, err = PromptPassword(user)
 		if err != nil {
-			return "", "", err
+			return "", "", fmt.Errorf("password not found in system keyring and interactive prompt failed: %w (run 'kawaii-wify login' first)", err)
 		}
 	} else {
 		user, pass, err = PromptCredentials()
 		if err != nil {
-			return "", "", err
+			return "", "", fmt.Errorf("no user configured and interactive prompt failed: %w (run 'kawaii-wify login' first)", err)
 		}
 	}
 
