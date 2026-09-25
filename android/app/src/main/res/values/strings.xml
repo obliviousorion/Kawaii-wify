@@ -1,6 +1,6 @@
 <resources>
     <string name="app_name">Kawaii-Wify</string>
-    <string name="channel_name">Wify-chan Daemon Service</string>
+    <string name="channel_name">Kawaii-Wify Daemon Service</string>
     <string name="channel_desc">Keeps campus Wi-Fi authentication active and monitors connection state.</string>
     <string name="tile_label">Kawaii Wi-Fi</string>
 </resources>

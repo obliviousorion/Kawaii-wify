@@ -4,17 +4,21 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.obliviousorion.kawaiiwify.domain.EngineState
 import com.obliviousorion.kawaiiwify.domain.SessionEngine
@@ -28,6 +32,8 @@ fun DashboardScreen(
     engine: SessionEngine,
     onConnectClick: () -> Unit,
     onDisconnectClick: () -> Unit,
+    onPauseClick: () -> Unit,
+    onResumeClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val telemetry by engine.telemetry.collectAsState()
@@ -48,17 +54,73 @@ fun DashboardScreen(
         // Hero Mascot Banner (Modular slot)
         MascotBanner(state = telemetry.state)
 
-        // Glowing Action Button
-        GlowingButton(
-            state = telemetry.state,
-            onClick = {
-                if (telemetry.state is EngineState.Online) {
-                    onDisconnectClick()
-                } else {
-                    onConnectClick()
+        // Main Action & Secondary Controls Container
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            // Main Glowing Button
+            GlowingButton(
+                state = telemetry.state,
+                onClick = {
+                    when (telemetry.state) {
+                        is EngineState.Online -> onDisconnectClick()
+                        is EngineState.Paused -> onResumeClick()
+                        else -> onConnectClick()
+                    }
                 }
+            )
+
+            // Secondary Action Row (Pause or Logout)
+            when (telemetry.state) {
+                is EngineState.Online -> {
+                    OutlinedButton(
+                        onClick = onPauseClick,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(46.dp),
+                        shape = RoundedCornerShape(23.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = NeonLavender),
+                        border = BorderStroke(1.dp, NeonLavender.copy(alpha = 0.5f))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Pause,
+                            contentDescription = null,
+                            tint = NeonLavender,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Pause Daemon (Keep Firewall Session)",
+                            style = Typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                        )
+                    }
+                }
+
+                is EngineState.Paused -> {
+                    OutlinedButton(
+                        onClick = onDisconnectClick,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(46.dp),
+                        shape = RoundedCornerShape(23.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = CrimsonRed),
+                        border = BorderStroke(1.dp, CrimsonRed.copy(alpha = 0.5f))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PowerSettingsNew,
+                            contentDescription = null,
+                            tint = CrimsonRed,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Full Logout on Firewall",
+                            style = Typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                        )
+                    }
+                }
+
+                else -> {}
             }
-        )
+        }
 
         // Telemetry Metrics Grid
         Text(

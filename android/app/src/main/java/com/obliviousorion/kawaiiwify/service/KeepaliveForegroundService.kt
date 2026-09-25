@@ -89,6 +89,31 @@ class KeepaliveForegroundService : Service() {
                 }
             }
 
+            Constants.ACTION_PAUSE -> {
+                serviceScope.launch {
+                    KawaiiApplication.instance.sessionEngine.pause()
+                }
+            }
+
+            Constants.ACTION_RESUME -> {
+                serviceScope.launch {
+                    val config = KawaiiApplication.instance.preferencesManager.configFlow.first()
+                    val credentials = KawaiiApplication.instance.securityManager.getCredentials()
+                    KawaiiApplication.instance.sessionEngine.resume(
+                        networkCallback.currentNetwork,
+                        config,
+                        credentials,
+                        networkCallback.currentSsid
+                    )
+                    KawaiiApplication.instance.sessionEngine.tick(
+                        networkCallback.currentNetwork,
+                        config,
+                        credentials,
+                        networkCallback.currentSsid
+                    )
+                }
+            }
+
             Constants.ACTION_STOP_SERVICE -> {
                 stopSelf()
             }
@@ -161,34 +186,55 @@ class KeepaliveForegroundService : Service() {
             this, 2, disconnectIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
+        val pauseIntent = Intent(this, KeepaliveForegroundService::class.java).apply {
+            action = Constants.ACTION_PAUSE
+        }
+        val pausePending = PendingIntent.getService(
+            this, 3, pauseIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val resumeIntent = Intent(this, KeepaliveForegroundService::class.java).apply {
+            action = Constants.ACTION_RESUME
+        }
+        val resumePending = PendingIntent.getService(
+            this, 4, resumeIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
         val (title, content, mascotRes) = when (state) {
             is EngineState.Online -> {
                 val hours = uptimeSeconds / 3600
                 val mins = (uptimeSeconds % 3600) / 60
                 val secs = uptimeSeconds % 60
                 Triple(
-                    "Wify-chan: Connection Online! (◕‿◕)✌",
+                    "Kawaii-Wify: Connection Online! (◕‿◕)✌",
                     "Session active • Uptime %02d:%02d:%02d".format(hours, mins, secs),
                     R.drawable.wify_mascot_online
                 )
             }
+            is EngineState.Paused -> {
+                Triple(
+                    "Kawaii-Wify: Paused (Firewall Untouched)",
+                    "Daemon paused • Background checks frozen",
+                    R.drawable.wify_mascot_offline
+                )
+            }
             is EngineState.Captive -> {
                 Triple(
-                    "Wify-chan: Captive Portal Intercepted",
+                    "Kawaii-Wify: Captive Portal Intercepted",
                     "Authenticating with FortiGate...",
                     R.drawable.wify_mascot_online
                 )
             }
             is EngineState.Cooldown -> {
                 Triple(
-                    "Wify-chan: Circuit Breaker Cooldown",
+                    "Kawaii-Wify: Circuit Breaker Cooldown",
                     "Pausing to protect account (${state.remainingSeconds}s remaining)",
                     R.drawable.wify_mascot_offline
                 )
             }
             else -> {
                 Triple(
-                    "Wify-chan: Resting (ᴗ˳ᴗ)",
+                    "Kawaii-Wify: Resting (ᴗ˳ᴗ)",
                     "Engine is offline or waiting for Wi-Fi",
                     R.drawable.wify_mascot_offline
                 )
@@ -207,10 +253,18 @@ class KeepaliveForegroundService : Service() {
             .setOnlyAlertOnce(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
 
-        if (state is EngineState.Online) {
-            builder.addAction(android.R.drawable.ic_media_pause, "Disconnect", disconnectPending)
-        } else {
-            builder.addAction(android.R.drawable.ic_media_play, "Connect", connectPending)
+        when (state) {
+            is EngineState.Online -> {
+                builder.addAction(android.R.drawable.ic_media_pause, "Pause", pausePending)
+                builder.addAction(android.R.drawable.ic_menu_close_clear_cancel, "Disconnect", disconnectPending)
+            }
+            is EngineState.Paused -> {
+                builder.addAction(android.R.drawable.ic_media_play, "Resume", resumePending)
+                builder.addAction(android.R.drawable.ic_menu_close_clear_cancel, "Disconnect", disconnectPending)
+            }
+            else -> {
+                builder.addAction(android.R.drawable.ic_media_play, "Connect", connectPending)
+            }
         }
 
         return builder.build()

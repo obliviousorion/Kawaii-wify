@@ -12,5 +12,7 @@ object Constants {
 
     const val ACTION_CONNECT = "com.obliviousorion.kawaiiwify.ACTION_CONNECT"
     const val ACTION_DISCONNECT = "com.obliviousorion.kawaiiwify.ACTION_DISCONNECT"
+    const val ACTION_PAUSE = "com.obliviousorion.kawaiiwify.ACTION_PAUSE"
+    const val ACTION_RESUME = "com.obliviousorion.kawaiiwify.ACTION_RESUME"
     const val ACTION_STOP_SERVICE = "com.obliviousorion.kawaiiwify.ACTION_STOP_SERVICE"
 }
