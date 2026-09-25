@@ -52,7 +52,7 @@ fun GlowingButton(
 
     val buttonText = when {
         isCooldown -> "IN COOLDOWN (${(state as EngineState.Cooldown).remainingSeconds}s)"
-        isOnline -> "DISCONNECT & LOGOUT"
+        isOnline -> "DISCONNECT"
         isPaused -> "RESUME DAEMON"
         isCaptive -> "AUTHENTICATING..."
         else -> "CONNECT TO CAMPUS"
