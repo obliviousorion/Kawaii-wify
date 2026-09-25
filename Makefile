@@ -75,5 +75,16 @@ build-darwin: export GOARCH = $(TARGET_ARCH)
 build-darwin:
 	@go build -o "bin/debug/$(BINARY_NAME)-darwin" ./cmd/kawaii-wify
 
+# --- Android Targets ---
+android-build:
+	cd android && ./gradlew assembleDebug
+
+android-install:
+	cd android && ./gradlew installDebug
+
+android-clean:
+	cd android && ./gradlew clean
+
 clean:
 	@$(CLEAN_CMD)
+
