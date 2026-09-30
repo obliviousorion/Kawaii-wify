@@ -78,6 +78,8 @@ Campus and corporate networks with FortiGate firewalls enforce session expiratio
 3. **Session Re-establishment**: Responds instantly when access points roam or sessions drop.
 4. **Hardware-Backed Credential Security**: Credentials are encrypted in native hardware keystores (Android KeyStore, Windows Credential Manager, macOS Keychain, Linux Secret Service).
 5. **Circuit Breaker**: Stops retrying after consecutive authentication failures to protect your account against lockouts.
+6. **TLS Certificate Pinning (TOFU)**: Authenticates self-signed gateway certificates via cryptographic SHA-256 fingerprints, protecting against rogue APs and MITM attacks.
+7. **Host-Restricted Redirects**: Restricts HTTP redirects strictly to the configured gateway host, ensuring credentials and session tokens never leak to external domains.
 
 ---
 
@@ -251,11 +253,20 @@ Configuration files are saved in standard user config directories:
 kawaii-wify config get
 
 # View or change a specific setting
-kawaii-wify config get check_interval
 kawaii-wify config set check_interval 5s
 kawaii-wify config set keepalive false
 kawaii-wify config set gateway fw.bits-pilani.ac.in:8090
+kawaii-wify config set verify_tls true
+
+# Clear stored certificate pins (re-triggers TOFU on next connection)
+kawaii-wify config clear-pins
+
+# Hot-reload configuration into running daemon without restart
+kawaii-wify config reload
 ```
+
+> [!NOTE]
+> Running background daemon processes automatically hot-reload configuration changes over IPC in real time without needing a restart.
 
 | Setting | Default | Description |
 | :--- | :--- | :--- |
@@ -263,6 +274,8 @@ kawaii-wify config set gateway fw.bits-pilani.ac.in:8090
 | `keepalive` | `true` | Periodic keepalive pings to gateway. Recommended: `false`. |
 | `auto_connect` | `true` | Start monitoring and authenticating automatically upon launch. |
 | `gateway` | `fw.bits-pilani.ac.in:8090` | Host and port of the FortiGate captive portal. |
+| `verify_tls` | `true` | Enforces cryptographic SHA-256 certificate fingerprint validation. |
+| `cert_pins` | `{}` | Map of trusted SHA-256 certificate fingerprints per gateway endpoint. |
 
 ### Complete CLI Command Reference
 
@@ -272,14 +285,16 @@ kawaii-wify config set gateway fw.bits-pilani.ac.in:8090
 | `kawaii-wify logout` | `-u, --user <name>` | Clears credentials from OS keyring and disconnects session. |
 | `kawaii-wify start` | `-u <name>`, `--gateway <endpoint>`<br>`-p, --paused`<br>`--[no-]keepalive`<br>`--[no-]auto-connect` | Spawns background daemon detached from terminal. |
 | `kawaii-wify daemon` | *(same flags as start)* | Runs daemon in foreground for real-time console debugging. |
-| `kawaii-wify status` | — | Queries running daemon over IPC for state and telemetry. |
+| `kawaii-wify status` | — | Queries running daemon over IPC for state, security alerts, and telemetry. |
 | `kawaii-wify connect` | — | Commands running daemon to probe network and login immediately. |
 | `kawaii-wify disconnect`| — | Revokes gateway lease and pauses daemon. |
 | `kawaii-wify stop` | — | Gracefully stops the running daemon. |
 | `kawaii-wify logs` | `-n, --lines <count>`<br>`-p, --path` | Displays recent logs or prints log file path. |
 | `kawaii-wify autostart` | `enable` / `disable` / `status` | Configures OS login autostart (Registry, XDG, LaunchAgent). |
 | `kawaii-wify config get` | `[key]` | Displays all or a single configuration value. |
-| `kawaii-wify config set` | `<key> <val>` | Updates local config value. |
+| `kawaii-wify config set` | `<key> <val>` | Updates local config value (auto-reloaded into active daemon). |
+| `kawaii-wify config clear-pins` | `[endpoint]` | Clears stored certificate pins and re-triggers TOFU pinning. |
+| `kawaii-wify config reload` | — | Hot-reloads configuration from disk into the active daemon. |
 
 ---
 
