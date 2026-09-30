@@ -10,7 +10,7 @@ Pre-built binaries and native packages are available from the [GitHub Releases](
 
 | Platform | Package | Architecture | Download |
 | :--- | :--- | :--- | :--- |
-| **Android** | Native App (`.apk`) | Android 8.0+ (ARM64, x86_64) | [kawaii-wify-android.apk](https://github.com/obliviousorion/Kawaii-wify/releases/latest/download/kawaii-wify-android.apk) |
+| **Android** | Native App (`.apk`) | Android 8.0+ (ARM64, x86_64) | [kawaii-wify-android-v0.2.2.apk](https://github.com/obliviousorion/Kawaii-wify/releases/latest/download/kawaii-wify-android-v0.2.2.apk) / [kawaii-wify-android.apk](https://github.com/obliviousorion/Kawaii-wify/releases/latest/download/kawaii-wify-android.apk) |
 | **Windows** | Executable (`.exe`) | x86_64 / amd64 | [kawaii-wify-windows-amd64.exe](https://github.com/obliviousorion/Kawaii-wify/releases/latest/download/kawaii-wify-windows-amd64.exe) |
 | **Linux** | Standalone Binary | x86_64 / amd64 | [kawaii-wify-linux-amd64](https://github.com/obliviousorion/Kawaii-wify/releases/latest/download/kawaii-wify-linux-amd64) |
 | **Linux** | Standalone Binary | ARM64 / aarch64 | [kawaii-wify-linux-arm64](https://github.com/obliviousorion/Kawaii-wify/releases/latest/download/kawaii-wify-linux-arm64) |
@@ -35,7 +35,7 @@ irm https://raw.githubusercontent.com/obliviousorion/Kawaii-wify/main/install.ps
 
 ### Manual Installation
 
-- **Android**: Download `kawaii-wify-android.apk`, open the file to install, and allow installation from unknown sources if prompted.
+- **Android**: Download `kawaii-wify-android-v0.2.2.apk`, open the file to install, and allow installation from unknown sources if prompted.
 - **Linux / macOS**:
   1. Download the binary matching your CPU architecture.
   2. Make it executable: `chmod +x kawaii-wify-*`
@@ -47,7 +47,24 @@ irm https://raw.githubusercontent.com/obliviousorion/Kawaii-wify/main/install.ps
 
 ### Updating
 
-Updating Kawaii-Wify is as simple as re-running the automated installation command:
+#### Native Desktop Self-Updater (Recommended)
+
+Starting with **v0.2.2**, Kawaii-Wify includes a built-in atomic self-updater:
+
+```bash
+# Check if an update is available without downloading
+kawaii-wify update --check
+
+# Perform in-place update (auto-detects platform, stops daemon, swaps binary safely, restarts daemon)
+kawaii-wify update
+
+# Force re-download / reinstall even if already on latest version
+kawaii-wify update --force
+```
+
+#### Via Automated Install Script
+
+You can also re-run the automated install script anytime to update:
 
 **Linux / macOS:**
 ```bash
@@ -61,10 +78,10 @@ irm https://raw.githubusercontent.com/obliviousorion/Kawaii-wify/main/install.ps
 
 > [!TIP]
 > **Smart Updates with Zero Downtime:**
-> - The install script automatically checks your installed version against the latest GitHub Release. If you are already up to date, it notifies you and exits cleanly.
-> - If an active `kawaii-wify` daemon is running, the script safely stops it, replaces the binary (preventing Windows file-locking errors), and restarts the daemon automatically.
+> - The native `update` command and install scripts both inspect the cross-platform `versions.json` manifest. You will never receive false update prompts if a release only bumped the other platform.
+> - If an active `kawaii-wify` daemon is running, it safely pauses over IPC, replaces the binary (preventing Windows file-locking errors via atomic renaming), and restarts automatically.
 > - Your saved credentials, configuration, and autostart settings are 100% preserved.
-> - **Android Users**: Download and install the new release APK directly over your existing installation. In-place updates work seamlessly because official releases use a consistent signing key.
+> - **Android Users**: When an update is ready, a pulsing download icon appears on the Dashboard top bar and an OS notification is sent. Tapping it opens the Cyber-Glass Update Dialog to download the APK directly. Official releases use a consistent signing key, allowing seamless in-place updates.
 
 ---
 
