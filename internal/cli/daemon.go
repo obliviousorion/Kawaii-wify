@@ -52,9 +52,10 @@ func runDaemon(cmd *cobra.Command, args []string) {
 	user, pass, err := credentials.Resolve(userOverride, cfg.Username)
 	if err != nil {
 		_ = notify.Send(notify.Notification{
-			Title:    "Kawaii-Wify: Keyring Error",
-			Message:  "Could not access saved credentials from system keyring. Run 'kawaii-wify login'.",
-			Category: notify.CategoryAuthFailed,
+			Title:      "Kawaii-Wify: Keyring Error",
+			Message:    "Could not access saved credentials from system keyring.",
+			Category:   notify.CategoryAuthFailed,
+			ActionHint: "Run 'kawaii-wify login'",
 		})
 		logger.Fatal("Could not resolve user credentials: %v", err)
 	}
@@ -113,9 +114,11 @@ func runDaemon(cmd *cobra.Command, args []string) {
 	updater.StartBackgroundChecker(ctx, AppVersion, 24*time.Hour, func(rel *updater.Release) {
 		logger.Boot("New release available: %s (current: %s)", rel.TagName, AppVersion)
 		_ = notify.Send(notify.Notification{
-			Title:    "Kawaii-Wify: Update Available",
-			Message:  fmt.Sprintf("Version %s is available on GitHub with security enhancements and improvements.", rel.TagName),
-			Category: notify.CategoryUpdate,
+			Title:      "Kawaii-Wify: Update Available",
+			Message:    fmt.Sprintf("Version %s is available with security enhancements and improvements.", rel.TagName),
+			Category:   notify.CategoryUpdate,
+			ActionHint: "Run 'kawaii-wify update' (or click to view changelog)",
+			ActionURL:  rel.HTMLURL,
 		})
 	})
 

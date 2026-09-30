@@ -15,7 +15,11 @@ func NewNotifier() Notifier {
 }
 
 func (d *darwinNotifier) Send(n Notification) error {
-	cleanMsg := strings.ReplaceAll(n.Message, `\`, `\\`)
+	body := n.Message
+	if n.ActionHint != "" {
+		body += " - Action: " + n.ActionHint
+	}
+	cleanMsg := strings.ReplaceAll(body, `\`, `\\`)
 	cleanMsg = strings.ReplaceAll(cleanMsg, `"`, `\"`)
 	cleanTitle := strings.ReplaceAll(n.Title, `\`, `\\`)
 	cleanTitle = strings.ReplaceAll(cleanTitle, `"`, `\"`)

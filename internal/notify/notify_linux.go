@@ -23,7 +23,11 @@ func (l *linuxNotifier) Send(n Notification) error {
 	if mascotPath != "" {
 		args = append(args, "-i", mascotPath)
 	}
-	args = append(args, n.Title, n.Message)
+	body := n.Message
+	if n.ActionHint != "" {
+		body += "\nAction: " + n.ActionHint
+	}
+	args = append(args, n.Title, body)
 
 	cmd := exec.Command("notify-send", args...)
 	if err := cmd.Run(); err != nil {

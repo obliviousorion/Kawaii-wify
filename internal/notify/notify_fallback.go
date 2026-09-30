@@ -13,6 +13,10 @@ func NewNotifier() Notifier {
 }
 
 func (f *fallbackNotifier) Send(n Notification) error {
-	log.Printf("[NOTIFY] [%s] %s: %s", n.Category, n.Title, n.Message)
+	msg := n.Message
+	if n.ActionHint != "" {
+		msg += " | Action: " + n.ActionHint
+	}
+	log.Printf("[NOTIFY] [%s] %s: %s", n.Category, n.Title, msg)
 	return nil
 }

@@ -26,12 +26,16 @@ func (w *windowsNotifier) Send(n Notification) error {
 		mascotPath = ""
 	}
 
-	var titleBuf, msgBuf strings.Builder
+	var titleBuf, msgBuf, hintBuf strings.Builder
 	_ = xml.EscapeText(&titleBuf, []byte(n.Title))
 	_ = xml.EscapeText(&msgBuf, []byte(n.Message))
+	if n.ActionHint != "" {
+		_ = xml.EscapeText(&hintBuf, []byte("Action: "+n.ActionHint))
+	}
 
 	escapedTitle := titleBuf.String()
 	escapedMsg := msgBuf.String()
+	escapedHint := hintBuf.String()
 
 	imageBinding := ""
 	if mascotPath != "" {
@@ -43,8 +47,23 @@ func (w *windowsNotifier) Send(n Notification) error {
 		}
 	}
 
-	xmlContent := fmt.Sprintf(`<toast duration="short"><visual><binding template="ToastGeneric">%s<text>%s</text><text>%s</text></binding></visual><audio src="ms-winsoundevent:Notification.Default"/></toast>`,
-		imageBinding, escapedTitle, escapedMsg)
+	hintBinding := ""
+	if escapedHint != "" {
+		hintBinding = fmt.Sprintf(`<text>%s</text>`, escapedHint)
+	}
+
+	toastAttrs := `duration="short"`
+	actionsBinding := ""
+	if n.ActionURL != "" {
+		var urlBuf strings.Builder
+		_ = xml.EscapeText(&urlBuf, []byte(n.ActionURL))
+		escapedURL := urlBuf.String()
+		toastAttrs += fmt.Sprintf(` activationType="protocol" launch="%s"`, escapedURL)
+		actionsBinding = fmt.Sprintf(`<actions><action activationType="protocol" arguments="%s" content="Open in Browser"/></actions>`, escapedURL)
+	}
+
+	xmlContent := fmt.Sprintf(`<toast %s><visual><binding template="ToastGeneric">%s<text>%s</text><text>%s</text>%s</binding></visual><audio src="ms-winsoundevent:Notification.Default"/>%s</toast>`,
+		toastAttrs, imageBinding, escapedTitle, escapedMsg, hintBinding, actionsBinding)
 
 	// PowerShell script to invoke Windows WinRT Toast
 	psScript := fmt.Sprintf(`

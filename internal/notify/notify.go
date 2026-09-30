@@ -16,9 +16,11 @@ const (
 )
 
 type Notification struct {
-	Title    string
-	Message  string
-	Category Category
+	Title      string
+	Message    string
+	Category   Category
+	ActionHint string // Specific remediation instruction (e.g. "Run 'kawaii-wify login'")
+	ActionURL  string // Optional URL opened when the user clicks the toast
 }
 
 type Notifier interface {
