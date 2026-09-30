@@ -207,6 +207,7 @@ kawaii-wify status
 | **Pause / Disconnect**| `kawaii-wify disconnect` | Log out from the firewall gateway and pause monitoring. |
 | **Stop Daemon** | `kawaii-wify stop` | Gracefully terminate the background daemon. |
 | **Update Password** | `kawaii-wify login` | Overwrite your saved credentials whenever your campus password expires. |
+| **Notifications** | `kawaii-wify notify` | Manage and test OS desktop toast notifications and mascot alerts. |
 
 ---
 
@@ -276,6 +277,27 @@ kawaii-wify config reload
 | `gateway` | `fw.bits-pilani.ac.in:8090` | Host and port of the FortiGate captive portal. |
 | `verify_tls` | `true` | Enforces cryptographic SHA-256 certificate fingerprint validation. |
 | `cert_pins` | `{}` | Map of trusted SHA-256 certificate fingerprints per gateway endpoint. |
+| `notifications` | `true` | Enables or disables native desktop OS toast notifications and mascot alerts. |
+
+### Desktop Toast Notifications & Mascot Alerts
+
+Kawaii-Wify includes an event-driven desktop toast notification engine with embedded anime mascot avatars across Windows (WinRT), Linux (notify-send), and macOS (Notification Center):
+- **Zero Periodic Noise**: The daemon remains silent during routine successful keepalives and normal connections.
+- **Actionable Alerts**: Only triggers when user attention is required: security halts (gateway certificate mismatches / rogue portals), campus password rejections (circuit breaker cooldown), or background updates.
+
+```bash
+# Check notification status
+kawaii-wify notify status
+
+# Toggle desktop notifications (instantly hot-reloads running daemon)
+kawaii-wify notify enable
+kawaii-wify notify disable
+
+# Test notification popups and mascot avatars
+kawaii-wify notify test
+kawaii-wify notify test auth_failed
+kawaii-wify notify test update
+```
 
 ### Complete CLI Command Reference
 
@@ -291,6 +313,7 @@ kawaii-wify config reload
 | `kawaii-wify stop` | — | Gracefully stops the running daemon. |
 | `kawaii-wify logs` | `-n, --lines <count>`<br>`-p, --path` | Displays recent logs or prints log file path. |
 | `kawaii-wify autostart` | `enable` / `disable` / `status` | Configures OS login autostart (Registry, XDG, LaunchAgent). |
+| `kawaii-wify notify` | `status` / `enable` / `disable`<br>`test [category]` | Manages and tests OS desktop toast notifications and mascot alerts. |
 | `kawaii-wify config get` | `[key]` | Displays all or a single configuration value. |
 | `kawaii-wify config set` | `<key> <val>` | Updates local config value (auto-reloaded into active daemon). |
 | `kawaii-wify config clear-pins` | `[endpoint]` | Clears stored certificate pins and re-triggers TOFU pinning. |
