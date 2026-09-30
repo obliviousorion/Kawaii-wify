@@ -37,11 +37,13 @@ func (w *windowsNotifier) Send(n Notification) error {
 	if mascotPath != "" {
 		if absPath, err := filepath.Abs(mascotPath); err == nil {
 			uri := "file:///" + filepath.ToSlash(absPath)
-			imageBinding = fmt.Sprintf(`<image placement="appLogoOverride" hint-crop="circle" src="%s"/>`, uri)
+			var uriBuf strings.Builder
+			_ = xml.EscapeText(&uriBuf, []byte(uri))
+			imageBinding = fmt.Sprintf(`<image placement="appLogoOverride" hint-crop="circle" src="%s"/>`, uriBuf.String())
 		}
 	}
 
-	xmlContent := fmt.Sprintf(`<toast><visual><binding template="ToastGeneric">%s<text>%s</text><text>%s</text></binding></visual></toast>`,
+	xmlContent := fmt.Sprintf(`<toast duration="short"><visual><binding template="ToastGeneric">%s<text>%s</text><text>%s</text></binding></visual><audio src="ms-winsoundevent:Notification.Default"/></toast>`,
 		imageBinding, escapedTitle, escapedMsg)
 
 	// PowerShell script to invoke Windows WinRT Toast
@@ -55,8 +57,29 @@ $xml.LoadXml(@'
 '@)
 
 $toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
-$appId = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe'
-$notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($appId)
+
+$appId = 'Kawaii-Wify'
+$regPath = 'HKCU:\Software\Classes\AppUserModelId\' + $appId
+if (-not (Test-Path $regPath)) {
+    try {
+        New-Item -Path $regPath -Force | Out-Null
+        Set-ItemProperty -Path $regPath -Name 'DisplayName' -Value 'Kawaii-Wify'
+    } catch {}
+}
+
+$notifier = $null
+try {
+    $n = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($appId)
+    if ($n.Setting -eq [Windows.UI.Notifications.NotificationSetting]::Enabled) {
+        $notifier = $n
+    }
+} catch {}
+
+if ($null -eq $notifier) {
+    $fallbackId = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe'
+    $notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($fallbackId)
+}
+
 $notifier.Show($toast)
 `, xmlContent)
 

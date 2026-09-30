@@ -126,19 +126,19 @@ func runNotifyTest(cmd *cobra.Command, args []string) {
 	switch category {
 	case notify.CategorySecurity:
 		title = "Kawaii-Wify: Security Alert"
-		msg = "Test: Gateway certificate mismatch detected. Auto-login halted for safety."
+		msg = "Gateway certificate mismatch detected. Auto-login halted for safety."
 	case notify.CategoryAuthFailed:
 		title = "Kawaii-Wify: Login Failed"
-		msg = "Test: Campus firewall rejected credentials. Please update your password."
+		msg = "Campus firewall rejected credentials. Please update your password."
 	case notify.CategoryUpdate:
 		title = "Kawaii-Wify: Update Available"
-		msg = "Test: Version v0.2.0 is out with security enhancements and speedups!"
+		msg = "Version v0.2.0 is out with security enhancements and improvements!"
 	case notify.CategoryOnline:
 		title = "Kawaii-Wify: Connected"
-		msg = "Test: Connection to campus network established."
+		msg = "Connection to campus network established."
 	case notify.CategoryOffline:
 		title = "Kawaii-Wify: Disconnected"
-		msg = "Test: Network offline or daemon paused."
+		msg = "Network offline or daemon paused."
 	}
 
 	fmt.Printf("Dispatching test notification [%s]...\n", category)

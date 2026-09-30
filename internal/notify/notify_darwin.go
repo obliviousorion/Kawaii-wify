@@ -15,8 +15,10 @@ func NewNotifier() Notifier {
 }
 
 func (d *darwinNotifier) Send(n Notification) error {
-	cleanMsg := strings.ReplaceAll(n.Message, `"`, `\"`)
-	cleanTitle := strings.ReplaceAll(n.Title, `"`, `\"`)
+	cleanMsg := strings.ReplaceAll(n.Message, `\`, `\\`)
+	cleanMsg = strings.ReplaceAll(cleanMsg, `"`, `\"`)
+	cleanTitle := strings.ReplaceAll(n.Title, `\`, `\\`)
+	cleanTitle = strings.ReplaceAll(cleanTitle, `"`, `\"`)
 
 	script := fmt.Sprintf(`display notification "%s" with title "%s"`, cleanMsg, cleanTitle)
 	cmd := exec.Command("osascript", "-e", script)
