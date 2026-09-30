@@ -129,10 +129,10 @@ func runNotifyTest(cmd *cobra.Command, args []string) {
 		msg = "Gateway certificate mismatch detected. Auto-login halted for safety."
 	case notify.CategoryAuthFailed:
 		title = "Kawaii-Wify: Login Failed"
-		msg = "Campus firewall rejected credentials. Please update your password."
+		msg = "Campus firewall rejected credentials. Please update your credentials."
 	case notify.CategoryUpdate:
 		title = "Kawaii-Wify: Update Available"
-		msg = "Version v0.2.0 is out with security enhancements and improvements!"
+		msg = "Version v0.x.0 is out with security enhancements and improvements!"
 	case notify.CategoryOnline:
 		title = "Kawaii-Wify: Connected"
 		msg = "Connection to campus network established."

@@ -69,13 +69,8 @@ if (-not (Test-Path $regPath)) {
 
 $notifier = $null
 try {
-    $n = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($appId)
-    if ($n.Setting -eq [Windows.UI.Notifications.NotificationSetting]::Enabled) {
-        $notifier = $n
-    }
-} catch {}
-
-if ($null -eq $notifier) {
+    $notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($appId)
+} catch {
     $fallbackId = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe'
     $notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($fallbackId)
 }
