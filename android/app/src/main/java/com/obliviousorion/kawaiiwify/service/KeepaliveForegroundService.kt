@@ -214,7 +214,7 @@ class KeepaliveForegroundService : Service() {
                         updateManager.markUpdateNotified(updateInfo.latestVersion)
                     }
                 } catch (e: Exception) {
-                    Logger.log("UPDATE", "Periodic update check encountered error: ${e.message}", LogLevel.DEBUG)
+                    Logger.log("UPDATE", "Periodic update check encountered error: ${e.message}", LogLevel.WARN)
                 }
                 // Check once every 24 hours
                 delay(24 * 60 * 60 * 1000L)

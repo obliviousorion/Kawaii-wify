@@ -2,7 +2,7 @@ package com.obliviousorion.kawaiiwify.data.updater
 
 import android.content.Context
 import com.obliviousorion.kawaiiwify.BuildConfig
-import com.obliviousorion.kawaiiwify.data.local.PreferencesDataStore
+import com.obliviousorion.kawaiiwify.data.local.PreferencesManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,7 +23,7 @@ data class UpdateInfo(
 
 class AppUpdateManager(
     private val context: Context,
-    private val prefManager: PreferencesDataStore
+    private val prefManager: PreferencesManager
 ) {
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
