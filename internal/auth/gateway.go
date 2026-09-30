@@ -94,6 +94,33 @@ func (g *Gateway) Endpoint() string {
 	return g.endpoint
 }
 
+// ReloadConfig dynamically updates the gateway's target endpoint, TLS verification, and pin providers.
+func (g *Gateway) ReloadConfig(cfg *config.Config) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	g.endpoint = cfg.GatewayEndpoint()
+	g.host = cfg.GatewayHost()
+	g.commitPinFn = func(ep, fp string) error {
+		cfg.AddPin(ep, fp)
+		return config.Save(cfg)
+	}
+
+	g.client = NewClientWithOptions(ClientOptions{
+		TargetEndpoint: g.endpoint,
+		TargetHost:     g.host,
+		GetPins: func(ep string) []string {
+			return cfg.GetPins(ep)
+		},
+		OnRecordPin: func(fingerprint string) {
+			g.mu.Lock()
+			g.pendingPin = fingerprint
+			g.mu.Unlock()
+		},
+		VerifyTLS: cfg.IsTLSVerificationEnabled(),
+	})
+}
+
 // Host returns the bare hostname or IP of the gateway.
 func (g *Gateway) Host() string {
 	return g.host

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/obliviousorion/kawaii-wify/internal/config"
+	"github.com/obliviousorion/kawaii-wify/internal/ipc"
 	"github.com/spf13/cobra"
 )
 
@@ -151,6 +152,7 @@ func runConfigSet(cmd *cobra.Command, args []string) {
 	}
 
 	log.Printf("[SUCCESS] Configuration updated: %s = %s", key, val)
+	notifyDaemonConfigReload()
 }
 
 func runConfigClearPins(cmd *cobra.Command, args []string) {
@@ -170,6 +172,7 @@ func runConfigClearPins(cmd *cobra.Command, args []string) {
 			log.Fatalf("[ERROR] Failed to save config: %v", err)
 		}
 		fmt.Println("✓ Cleared all stored certificate pins.")
+		notifyDaemonConfigReload()
 		return
 	}
 
@@ -178,11 +181,41 @@ func runConfigClearPins(cmd *cobra.Command, args []string) {
 		log.Fatalf("[ERROR] Failed to save config: %v", err)
 	}
 	fmt.Printf("✓ Cleared certificate pins for %s. Next connection will re-pin in TOFU mode.\n", target)
+	notifyDaemonConfigReload()
+}
+
+func notifyDaemonConfigReload() {
+	client, err := ipc.NewClient()
+	if err == nil {
+		defer client.Close()
+		_, _ = client.ReloadConfig()
+	}
+}
+
+var configReloadCmd = &cobra.Command{
+	Use:   "reload",
+	Short: "Hot-reload active configuration into running daemon",
+	Run: func(cmd *cobra.Command, args []string) {
+		client, err := ipc.NewClient()
+		if err != nil {
+			fmt.Println("✕ Daemon is not running. Configuration will be loaded on next startup.")
+			return
+		}
+		defer client.Close()
+		resp, err := client.ReloadConfig()
+		if err != nil {
+			fmt.Printf("✕ Reload failed: %v\n", err)
+			return
+		}
+		fmt.Printf("✓ %s\n", resp.Message)
+	},
 }
 
 func init() {
 	configCmd.AddCommand(configGetCmd)
 	configCmd.AddCommand(configSetCmd)
 	configCmd.AddCommand(configClearPinsCmd)
+	configCmd.AddCommand(configReloadCmd)
 	rootCmd.AddCommand(configCmd)
 }
+

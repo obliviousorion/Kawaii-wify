@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/obliviousorion/kawaii-wify/internal/auth"
+	"github.com/obliviousorion/kawaii-wify/internal/config"
+	"github.com/obliviousorion/kawaii-wify/internal/credentials"
 	"github.com/obliviousorion/kawaii-wify/internal/logger"
 )
 
@@ -250,7 +252,39 @@ func (e *Engine) TriggerCheck() {
 }
 
 func (e *Engine) Username() string {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
 	return e.username
+}
+
+// ReloadConfig dynamically updates runtime settings (gateway, pins, keepalive, credentials)
+// and clears any Security Halted state so the daemon immediately resumes probing.
+func (e *Engine) ReloadConfig(cfg *config.Config) {
+	e.mu.Lock()
+	e.gateway.ReloadConfig(cfg)
+	e.keepalive = cfg.Keepalive
+	if cfg.Username != "" {
+		e.username = cfg.Username
+		if pass, err := credentials.Get(cfg.Username); err == nil && pass != "" {
+			e.password = pass
+		}
+	}
+
+	wasHalted := (e.state == StateSecurityHalted)
+	if wasHalted {
+		logger.State("Security halt cleared via config reload; resuming monitoring")
+		e.state = StateOffline
+		e.paused = false
+		e.failCount = 0
+	}
+	e.mu.Unlock()
+
+	if wasHalted {
+		select {
+		case e.triggerChan <- nil:
+		default:
+		}
+	}
 }
 
 func (e *Engine) Uptime() time.Duration {

@@ -71,6 +71,7 @@ func runLogin(cmd *cobra.Command, args []string) {
 	client, err := ipc.NewClient()
 	if err == nil {
 		defer client.Close()
+		_, _ = client.ReloadConfig()
 		fmt.Println("Connecting to network via background daemon...")
 		resp, err := client.Connect()
 		if err != nil {

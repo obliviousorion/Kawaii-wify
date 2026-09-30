@@ -7,6 +7,7 @@ import (
 	"net/rpc"
 	"time"
 
+	"github.com/obliviousorion/kawaii-wify/internal/config"
 	"github.com/obliviousorion/kawaii-wify/internal/engine"
 	"github.com/obliviousorion/kawaii-wify/internal/logger"
 )
@@ -16,7 +17,7 @@ var (
 )
 
 const (
-	defaultConnectTimeout = 10 * time.Second
+	defaultConnectTimeout = 25 * time.Second
 )
 
 // Controller defines the engine capabilities exposed over the IPC layer.
@@ -31,6 +32,7 @@ type Controller interface {
 
 	Connect(timeout time.Duration) error
 	Disconnect()
+	ReloadConfig(cfg *config.Config)
 }
 
 
@@ -50,8 +52,9 @@ func NewDaemonService(controller Controller, cancel context.CancelFunc) *DaemonS
 // func (s *DaemonService) MethodName(req RequestType, resp *ResponseType) error
 
 func (s *DaemonService) GetStatus(req StatusRequest, resp *StatusResponse) error {
-	state := s.controller.State().String()
-	if s.controller.IsPaused() {
+	currentState := s.controller.State()
+	state := currentState.String()
+	if s.controller.IsPaused() && currentState != engine.StateSecurityHalted {
 		state = StatePaused
 	}
 
@@ -103,6 +106,22 @@ func (s *DaemonService) Stop(req ActionRequest, resp *ActionResponse) error {
 			s.cancel()
 		}()
 	}
+	return nil
+}
+
+// ReloadConfig hot-reloads runtime settings from disk into the active daemon.
+func (s *DaemonService) ReloadConfig(req ActionRequest, resp *ActionResponse) error {
+	logger.IPC("Command 'reload-config' received from client")
+	cfg, err := config.Load()
+	if err != nil {
+		resp.Success = false
+		resp.Message = fmt.Sprintf("Failed to load config: %v", err)
+		return nil
+	}
+
+	s.controller.ReloadConfig(cfg)
+	resp.Success = true
+	resp.Message = "Configuration reloaded successfully"
 	return nil
 }
 

@@ -62,3 +62,13 @@ func (c *Client) Stop() (*ActionResponse, error) {
 	}
 	return &resp, nil
 }
+
+func (c *Client) ReloadConfig() (*ActionResponse, error) {
+	var resp ActionResponse
+	err := c.rpcClient.Call("Daemon.ReloadConfig", ActionRequest{}, &resp)
+	if err != nil {
+		return nil, fmt.Errorf("reload config request failed: %w", err)
+	}
+	return &resp, nil
+}
+
