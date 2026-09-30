@@ -2,9 +2,11 @@ package cli
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/obliviousorion/kawaii-wify/internal/auth"
 	"github.com/obliviousorion/kawaii-wify/internal/config"
@@ -12,6 +14,8 @@ import (
 	"github.com/obliviousorion/kawaii-wify/internal/engine"
 	"github.com/obliviousorion/kawaii-wify/internal/ipc"
 	"github.com/obliviousorion/kawaii-wify/internal/logger"
+	"github.com/obliviousorion/kawaii-wify/internal/notify"
+	"github.com/obliviousorion/kawaii-wify/internal/updater"
 	"github.com/spf13/cobra"
 )
 
@@ -47,6 +51,11 @@ func runDaemon(cmd *cobra.Command, args []string) {
 
 	user, pass, err := credentials.Resolve(userOverride, cfg.Username)
 	if err != nil {
+		_ = notify.Send(notify.Notification{
+			Title:    "Kawaii-Wify: Keyring Error",
+			Message:  "Could not access saved credentials from system keyring. Run 'kawaii-wify login'.",
+			Category: notify.CategoryAuthFailed,
+		})
 		logger.Fatal("Could not resolve user credentials: %v", err)
 	}
 
@@ -100,6 +109,15 @@ func runDaemon(cmd *cobra.Command, args []string) {
 			logger.Warn("IPC server stopped: %v", err)
 		}
 	}()
+
+	updater.StartBackgroundChecker(ctx, AppVersion, 24*time.Hour, func(rel *updater.Release) {
+		logger.Boot("New release available: %s (current: %s)", rel.TagName, AppVersion)
+		_ = notify.Send(notify.Notification{
+			Title:    "Kawaii-Wify: Update Available",
+			Message:  fmt.Sprintf("Version %s is available on GitHub with security enhancements and improvements.", rel.TagName),
+			Category: notify.CategoryUpdate,
+		})
+	})
 
 	if err := eng.Run(ctx, cfg.Interval()); err != nil && err != context.Canceled {
 		logger.Fatal("Engine crashed: %v", err)

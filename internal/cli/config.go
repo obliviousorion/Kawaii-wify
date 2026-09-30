@@ -53,6 +53,7 @@ func runConfigGet(cmd *cobra.Command, args []string) {
 		fmt.Printf("keepalive: %t\n", cfg.Keepalive)
 		fmt.Printf("auto_connect: %t\n", cfg.AutoConnect)
 		fmt.Printf("verify_tls: %t\n", cfg.IsTLSVerificationEnabled())
+		fmt.Printf("notifications: %t\n", cfg.IsNotificationsEnabled())
 		pins := cfg.GetPins(cfg.GatewayEndpoint())
 		if len(pins) > 0 {
 			fmt.Printf("cert_pins (%s): %d stored\n", cfg.GatewayEndpoint(), len(pins))
@@ -79,6 +80,8 @@ func runConfigGet(cmd *cobra.Command, args []string) {
 		fmt.Println(cfg.AutoConnect)
 	case "verify_tls", "verifytls":
 		fmt.Println(cfg.IsTLSVerificationEnabled())
+	case "notifications", "notify":
+		fmt.Println(cfg.IsNotificationsEnabled())
 	case "cert_pins", "pins":
 		endpoint := cfg.GatewayEndpoint()
 		pins := cfg.GetPins(endpoint)
@@ -90,7 +93,7 @@ func runConfigGet(cmd *cobra.Command, args []string) {
 			}
 		}
 	default:
-		log.Fatalf("[ERROR] Unknown configuration key '%s'. Supported keys: username, gateway, check_interval, keepalive, auto_connect, verify_tls, cert_pins", args[0])
+		log.Fatalf("[ERROR] Unknown configuration key '%s'. Supported keys: username, gateway, check_interval, keepalive, auto_connect, verify_tls, notifications, cert_pins", args[0])
 	}
 }
 
@@ -143,8 +146,14 @@ func runConfigSet(cmd *cobra.Command, args []string) {
 			log.Fatalf("[ERROR] Invalid boolean value '%s'. Use 'true' or 'false'.", val)
 		}
 		cfg.VerifyTLS = &b
+	case "notifications", "notify":
+		b, err := strconv.ParseBool(val)
+		if err != nil {
+			log.Fatalf("[ERROR] Invalid boolean value '%s'. Use 'true' or 'false'.", val)
+		}
+		cfg.SetNotificationsEnabled(b)
 	default:
-		log.Fatalf("[ERROR] Unknown configuration key '%s'. Supported keys: username, gateway, check_interval, keepalive, auto_connect, verify_tls", args[0])
+		log.Fatalf("[ERROR] Unknown configuration key '%s'. Supported keys: username, gateway, check_interval, keepalive, auto_connect, verify_tls, notifications", args[0])
 	}
 
 	if err := config.Save(cfg); err != nil {

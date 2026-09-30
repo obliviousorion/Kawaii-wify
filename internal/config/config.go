@@ -20,10 +20,12 @@ type Config struct {
 	AutoConnect   bool                `json:"auto_connect"`
 	CertPins      map[string][]string `json:"cert_pins,omitempty"` // "endpoint": ["SHA256:..."]
 	VerifyTLS     *bool               `json:"verify_tls,omitempty"` // nil or true = verify, false = bypass
+	Notifications *bool               `json:"notifications,omitempty"` // nil or true = enabled, false = disabled
 }
 
 func Default() *Config {
 	verify := true
+	notif := true
 	return &Config{
 		Gateway:       DefaultGateway,
 		CheckInterval: "10s",
@@ -31,6 +33,7 @@ func Default() *Config {
 		AutoConnect:   true,
 		CertPins:      make(map[string][]string),
 		VerifyTLS:     &verify,
+		Notifications: &notif,
 	}
 }
 
@@ -96,6 +99,19 @@ func (c *Config) IsTLSVerificationEnabled() bool {
 		return true
 	}
 	return *c.VerifyTLS
+}
+
+// IsNotificationsEnabled returns whether OS desktop toast notifications are enabled.
+func (c *Config) IsNotificationsEnabled() bool {
+	if c.Notifications == nil {
+		return true
+	}
+	return *c.Notifications
+}
+
+// SetNotificationsEnabled sets the notifications preference.
+func (c *Config) SetNotificationsEnabled(enabled bool) {
+	c.Notifications = &enabled
 }
 
 func Load() (*Config, error) {

@@ -11,6 +11,7 @@ import (
 	"github.com/obliviousorion/kawaii-wify/internal/config"
 	"github.com/obliviousorion/kawaii-wify/internal/credentials"
 	"github.com/obliviousorion/kawaii-wify/internal/logger"
+	"github.com/obliviousorion/kawaii-wify/internal/notify"
 )
 
 const (
@@ -116,6 +117,7 @@ func (e *Engine) tick(ctx context.Context) error {
 			e.paused = true
 			e.mu.Unlock()
 			e.transition(StateSecurityHalted, err.Error())
+			notifySecurityHalt(err)
 			return err
 		}
 
@@ -156,6 +158,7 @@ func (e *Engine) tick(ctx context.Context) error {
 				e.paused = true
 				e.mu.Unlock()
 				e.transition(StateSecurityHalted, err.Error())
+				notifySecurityHalt(err)
 				return err
 			}
 			logger.Warn("Gateway priming failed, will retry on next tick: %v", err)
@@ -171,6 +174,7 @@ func (e *Engine) tick(ctx context.Context) error {
 				e.paused = true
 				e.mu.Unlock()
 				e.transition(StateSecurityHalted, err.Error())
+				notifySecurityHalt(err)
 				return err
 			}
 			currentFails := e.incrementFailures()
@@ -181,6 +185,7 @@ func (e *Engine) tick(ctx context.Context) error {
 				e.paused = true
 				e.mu.Unlock()
 				logger.Warn("Repeated authentication failures: pausing engine to protect account from lockout. Update credentials via 'kawaii-wify login' and run 'kawaii-wify connect'.")
+				notifyAuthFailed()
 			}
 			return err
 		}
@@ -403,4 +408,30 @@ func (e *Engine) updateLastProbe() {
 	e.mu.Lock()
 	e.lastProbe = time.Now()
 	e.mu.Unlock()
+}
+
+func notifySecurityHalt(err error) {
+	title := "Kawaii-Wify: Security Alert"
+	msg := "Campus gateway certificate changed or potential MITM detected. Auto-login halted for safety."
+	if errors.Is(err, auth.ErrForeignPortalDetected) || errors.Is(err, auth.ErrRedirectToForeignHost) {
+		title = "Kawaii-Wify: Foreign Portal Detected"
+		msg = "Unrecognized captive portal detected. Auto-login skipped to avoid leaking campus credentials."
+	}
+	go func() {
+		_ = notify.Send(notify.Notification{
+			Title:    title,
+			Message:  msg,
+			Category: notify.CategorySecurity,
+		})
+	}()
+}
+
+func notifyAuthFailed() {
+	go func() {
+		_ = notify.Send(notify.Notification{
+			Title:    "Kawaii-Wify: Login Failed",
+			Message:  "Campus firewall rejected credentials. Your campus password may have expired.",
+			Category: notify.CategoryAuthFailed,
+		})
+	}()
 }
