@@ -73,8 +73,15 @@ jobs:
         run: yes | sdkmanager --licenses || true
 
       - name: Build Signed Release APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
           cd android
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > app/release.jks
+          elif [ ! -f app/release.jks ]; then
+            keytool -genkeypair -v -keystore app/release.jks -alias kawaiiwify -keyalg RSA -keysize 2048 -validity 10000 -storepass kawaiiwify -keypass kawaiiwify -dname "CN=KawaiiWify, OU=Dev, O=KawaiiWify, L=Pilani, ST=RJ, C=IN"
+          fi
           chmod +x gradlew
           ./gradlew assembleRelease
           mkdir -p ../dist
