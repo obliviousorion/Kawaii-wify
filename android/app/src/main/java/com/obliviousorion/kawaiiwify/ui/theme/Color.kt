@@ -17,6 +17,7 @@ val NeonLavender = Color(0xFFBD93F9)
 val MintGreen = Color(0xFF50FA7B)
 val MintGreenGlow = Color(0x6650FA7B)
 val AlertOrange = Color(0xFFFFB86C)
+val WarningAmber = Color(0xFFFFB020)
 val CrimsonRed = Color(0xFFFF5555)
 
 // Text Colors
