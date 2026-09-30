@@ -59,6 +59,24 @@ object DefaultKawaiiWifyProvider : MascotThemeProvider {
                 badgeColor = CrimsonRed
             )
 
+            is EngineState.SecurityHalted -> MascotVisualState(
+                drawableRes = R.drawable.wify_mascot_offline,
+                statusTitle = "SECURITY ALERT",
+                statusQuote = "\"Connection halted: ${state.reason}\"",
+                auraColor = CrimsonRed,
+                badgeText = "ALERT",
+                badgeColor = CrimsonRed
+            )
+
+            is EngineState.BlockedByWhitelist -> MascotVisualState(
+                drawableRes = R.drawable.wify_mascot_offline,
+                statusTitle = "WI-FI NOT PERMITTED",
+                statusQuote = "\"SSID '${state.currentSsid ?: "Unknown"}' is not in permitted whitelist. (ᴗ˳ᴗ)\"",
+                auraColor = WarningAmber,
+                badgeText = "GATED",
+                badgeColor = WarningAmber
+            )
+
             is EngineState.Probing -> MascotVisualState(
                 drawableRes = R.drawable.wify_mascot_online,
                 statusTitle = "PROBING GATEWAY",

@@ -10,6 +10,9 @@ object Constants {
     const val NOTIFICATION_CHANNEL_ID = "kawaii_wify_keepalive"
     const val NOTIFICATION_ID = 1337
 
+    const val SECURITY_ALERT_CHANNEL_ID = "kawaii_wify_security_alerts"
+    const val SECURITY_NOTIFICATION_ID = 1338
+
     const val ACTION_CONNECT = "com.obliviousorion.kawaiiwify.ACTION_CONNECT"
     const val ACTION_DISCONNECT = "com.obliviousorion.kawaiiwify.ACTION_DISCONNECT"
     const val ACTION_PAUSE = "com.obliviousorion.kawaiiwify.ACTION_PAUSE"

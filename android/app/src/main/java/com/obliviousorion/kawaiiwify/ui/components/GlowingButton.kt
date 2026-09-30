@@ -37,10 +37,13 @@ fun GlowingButton(
     val isPaused = state is EngineState.Paused
     val isCooldown = state is EngineState.Cooldown
     val isCaptive = state is EngineState.Captive
+    val isSecurityHalted = state is EngineState.SecurityHalted
+    val isBlocked = state is EngineState.BlockedByWhitelist
 
     val primaryGlowColor by animateColorAsState(
         targetValue = when {
-            isCooldown -> CrimsonRed
+            isSecurityHalted || isCooldown -> CrimsonRed
+            isBlocked -> WarningAmber
             isOnline -> NeonLavender
             isPaused -> CyberCyan
             isCaptive -> AlertOrange
@@ -51,6 +54,8 @@ fun GlowingButton(
     )
 
     val buttonText = when {
+        isSecurityHalted -> "RESET & RETRY"
+        isBlocked -> "RETRY CONNECTION"
         isCooldown -> "IN COOLDOWN (${(state as EngineState.Cooldown).remainingSeconds}s)"
         isOnline -> "DISCONNECT"
         isPaused -> "RESUME DAEMON"
@@ -84,6 +89,8 @@ fun GlowingButton(
                 Brush.horizontalGradient(
                     colors = if (isOnline) {
                         listOf(Color(0xFF2A1B4D), Color(0xFF1B2A4D))
+                    } else if (isSecurityHalted || isCooldown) {
+                        listOf(Color(0xFF4A1015), Color(0xFF2E0A0E))
                     } else {
                         listOf(Color(0xFF4A1535), Color(0xFF15354A))
                     }
@@ -100,11 +107,12 @@ fun GlowingButton(
                 shape = RoundedCornerShape(29.dp)
             )
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(color = primaryGlowColor),
                 enabled = enabled && !isCooldown,
-                onClick = onClick
-            ),
+                interactionSource = remember { MutableInteractionSource() },
+                indication = ripple(color = primaryGlowColor)
+            ) {
+                onClick()
+            },
         contentAlignment = Alignment.Center
     ) {
         Row(
@@ -114,8 +122,8 @@ fun GlowingButton(
             if (isCaptive) {
                 CircularProgressIndicator(
                     modifier = Modifier.size(20.dp),
-                    color = AlertOrange,
-                    strokeWidth = 2.5.dp
+                    color = Color.White,
+                    strokeWidth = 2.dp
                 )
                 Spacer(modifier = Modifier.width(12.dp))
             }
@@ -123,10 +131,11 @@ fun GlowingButton(
             Text(
                 text = buttonText,
                 style = Typography.titleMedium.copy(
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.2.sp,
-                    color = if (enabled && !isCooldown) TextPrimary else TextMuted
-                )
+                    letterSpacing = 1.2.sp
+                ),
+                color = if (isCooldown) TextSecondary else Color.White
             )
         }
     }

@@ -18,7 +18,7 @@ import java.util.Date
 import java.util.Locale
 
 class SessionEngine(
-    private val auth: FortiGateAuth = FortiGateAuth()
+    val auth: FortiGateAuth = FortiGateAuth()
 ) {
     private val mutex = Mutex()
     private val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
@@ -70,13 +70,28 @@ class SessionEngine(
             return@withLock
         }
 
+        // Security violation state requires manual acknowledgment/action
+        if (engineState is EngineState.SecurityHalted) {
+            return@withLock
+        }
+
+        // Fail-Closed SSID Whitelist Gating (Only if user explicitly enabled it)
+        if (config.enforceSsidWhitelist && config.ssidWhitelist.isNotEmpty()) {
+            if (activeSsid.isNullOrBlank() || activeSsid == "<unknown ssid>" || !config.ssidWhitelist.contains(activeSsid)) {
+                Logger.log("NET", "SSID whitelist active. Current SSID '$activeSsid' is not permitted. Skipping login.", LogLevel.WARN)
+                transitionLocked(EngineState.BlockedByWhitelist(activeSsid), "SSIDNotPermitted")
+                return@withLock
+            }
+        }
+
         // Circuit breaker check
         if (inCooldownLocked()) {
             return@withLock
         }
 
+        val trustedPins = config.getPinsForGateway(config.gateway)
         val startMs = System.currentTimeMillis()
-        val probeRes = auth.probe(network, config.gateway)
+        val probeRes = auth.probe(network, config.gateway, trustedPins, config.verifyTls)
         val latency = System.currentTimeMillis() - startMs
 
         when (probeRes) {
@@ -85,11 +100,18 @@ class SessionEngine(
                 failCount = 0
 
                 if (config.keepaliveEnabled && sessionToken.isNotEmpty()) {
-                    val keepaliveRes = auth.keepalive(network, config.gateway, sessionToken)
+                    val keepaliveRes = auth.keepalive(network, config.gateway, sessionToken, trustedPins, config.verifyTls)
                     if (keepaliveRes.isFailure) {
                         Logger.log("AUTH", "Keepalive ping failed: ${keepaliveRes.exceptionOrNull()?.message}", LogLevel.WARN)
                     }
                 }
+            }
+
+            is ProbeResult.SecurityViolation -> {
+                Logger.log("SECURITY", "Halting daemon due to security violation: ${probeRes.reason}", LogLevel.ERROR)
+                isPaused = true
+                transitionLocked(EngineState.SecurityHalted(probeRes.reason), "SecurityViolation")
+                return@withLock
             }
 
             is ProbeResult.Offline -> {
@@ -113,9 +135,16 @@ class SessionEngine(
                 }
 
                 // 1. Prime Challenge Session
-                val primeRes = auth.prime(network, config.gateway, probeRes.magicToken)
+                val primeRes = auth.prime(network, config.gateway, probeRes.magicToken, trustedPins, config.verifyTls)
                 if (primeRes.isFailure) {
-                    Logger.log("AUTH", "Gateway priming failed: ${primeRes.exceptionOrNull()?.message}", LogLevel.WARN)
+                    val ex = primeRes.exceptionOrNull()
+                    if (ex != null && FortiGateAuth.isSecurityException(ex)) {
+                        Logger.log("SECURITY", "Priming rejected due to security error: ${ex.message}", LogLevel.ERROR)
+                        isPaused = true
+                        transitionLocked(EngineState.SecurityHalted(ex.message ?: "TLS Security Error"), "SecurityHalted")
+                        return@withLock
+                    }
+                    Logger.log("AUTH", "Gateway priming failed: ${ex?.message}", LogLevel.WARN)
                     return@withLock
                 }
 
@@ -125,7 +154,9 @@ class SessionEngine(
                     gatewayHost = config.gateway,
                     challengeToken = probeRes.magicToken,
                     username = credentials.username,
-                    password = credentials.password
+                    password = credentials.password,
+                    trustedPins = trustedPins,
+                    verifyTls = config.verifyTls
                 )
 
                 if (loginRes.isSuccess) {
@@ -133,6 +164,14 @@ class SessionEngine(
                     failCount = 0
                     transitionLocked(EngineState.Online, "LoginSuccess")
                 } else {
+                    val ex = loginRes.exceptionOrNull()
+                    if (ex != null && FortiGateAuth.isSecurityException(ex)) {
+                        Logger.log("SECURITY", "Login rejected due to security error: ${ex.message}", LogLevel.ERROR)
+                        isPaused = true
+                        transitionLocked(EngineState.SecurityHalted(ex.message ?: "TLS Security Error"), "SecurityHalted")
+                        return@withLock
+                    }
+
                     failCount++
                     Logger.log("AUTH", "Login failed (attempt $failCount/${Constants.MAX_AUTH_FAILURES})", LogLevel.ERROR)
                     if (failCount >= Constants.MAX_AUTH_FAILURES) {
@@ -158,7 +197,10 @@ class SessionEngine(
     ) = mutex.withLock {
         isPaused = false
         failCount = 0
-        if (engineState is EngineState.Cooldown) {
+        if (engineState is EngineState.Cooldown ||
+            engineState is EngineState.SecurityHalted ||
+            engineState is EngineState.BlockedByWhitelist
+        ) {
             transitionLocked(EngineState.Offline, "UserConnectReset")
         }
         Logger.log("STATE", "Engine manually activated (◕‿◕)✌", LogLevel.INFO)
@@ -178,7 +220,11 @@ class SessionEngine(
     ) = mutex.withLock {
         isPaused = false
         failCount = 0
-        transitionLocked(if (sessionToken.isNotEmpty()) EngineState.Online else EngineState.Offline, "UserResumedDaemon")
+        if (engineState is EngineState.SecurityHalted || engineState is EngineState.BlockedByWhitelist) {
+            transitionLocked(EngineState.Offline, "UserResumedReset")
+        } else {
+            transitionLocked(if (sessionToken.isNotEmpty()) EngineState.Online else EngineState.Offline, "UserResumedDaemon")
+        }
         Logger.log("STATE", "Kawaii-Wify daemon resumed.", LogLevel.INFO)
     }
 
@@ -187,12 +233,13 @@ class SessionEngine(
         config: AppConfig
     ) = mutex.withLock {
         val currentToken = sessionToken
+        val trustedPins = config.getPinsForGateway(config.gateway)
         isPaused = true
         sessionToken = ""
         transitionLocked(EngineState.Offline, "UserDisconnected")
 
         if (currentToken.isNotBlank()) {
-            auth.logout(network, config.gateway, currentToken)
+            auth.logout(network, config.gateway, currentToken, trustedPins, config.verifyTls)
             Logger.log("STATE", "Logged out from FortiGate firewall session ($currentToken).", LogLevel.WARN)
         } else {
             Logger.log("STATE", "Engine disconnected and paused (no active session token to revoke).", LogLevel.INFO)

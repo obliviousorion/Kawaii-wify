@@ -5,10 +5,14 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
 import com.obliviousorion.kawaiiwify.core.Constants
+import com.obliviousorion.kawaiiwify.core.LogLevel
 import com.obliviousorion.kawaiiwify.core.Logger
 import com.obliviousorion.kawaiiwify.data.local.PreferencesManager
 import com.obliviousorion.kawaiiwify.data.local.SecurityManager
 import com.obliviousorion.kawaiiwify.domain.SessionEngine
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class KawaiiApplication : Application() {
 
@@ -30,12 +34,23 @@ class KawaiiApplication : Application() {
         preferencesManager = PreferencesManager(this)
         sessionEngine = SessionEngine()
 
-        createNotificationChannel()
+        // Persist TOFU certificate pins when authentic gateway proves identity
+        sessionEngine.auth.onCommitPin = { endpoint, pin ->
+            CoroutineScope(Dispatchers.IO).launch {
+                preferencesManager.addCertPin(endpoint, pin)
+                Logger.log("SECURITY", "Pinned trusted gateway certificate: $endpoint -> $pin", LogLevel.SUCCESS)
+            }
+        }
+
+        createNotificationChannels()
     }
 
-    private fun createNotificationChannel() {
+    private fun createNotificationChannels() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
+            val manager = getSystemService(NotificationManager::class.java)
+
+            // Low-importance channel for continuous background telemetry
+            val statusChannel = NotificationChannel(
                 Constants.NOTIFICATION_CHANNEL_ID,
                 getString(R.string.channel_name),
                 NotificationManager.IMPORTANCE_LOW
@@ -43,8 +58,19 @@ class KawaiiApplication : Application() {
                 description = getString(R.string.channel_desc)
                 setShowBadge(false)
             }
-            val manager = getSystemService(NotificationManager::class.java)
-            manager.createNotificationChannel(channel)
+
+            // High-importance channel for security warnings and certificate alerts
+            val securityChannel = NotificationChannel(
+                Constants.SECURITY_ALERT_CHANNEL_ID,
+                "Security & Gating Alerts",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Urgent notifications regarding certificate mismatches, rogue portals, and SSID gating"
+                setShowBadge(true)
+            }
+
+            manager.createNotificationChannel(statusChannel)
+            manager.createNotificationChannel(securityChannel)
         }
     }
 

@@ -41,10 +41,13 @@ class KeepaliveForegroundService : Service() {
                 val config = KawaiiApplication.instance.preferencesManager.configFlow.first()
                 val credentials = KawaiiApplication.instance.securityManager.getCredentials()
 
-                // Check SSID whitelist if configured
-                if (ssid != null && config.ssidWhitelist.isNotEmpty() && !config.ssidWhitelist.contains(ssid)) {
-                    Logger.log("NET", "Current SSID '$ssid' is not in whitelist. Ignoring.", LogLevel.WARN)
-                    return@launch
+                // Check SSID whitelist only if explicitly enforced
+                if (config.enforceSsidWhitelist && config.ssidWhitelist.isNotEmpty()) {
+                    if (ssid == null || !config.ssidWhitelist.contains(ssid)) {
+                        Logger.log("NET", "Current SSID '$ssid' is not permitted by whitelist. Ignoring.", LogLevel.WARN)
+                        KawaiiApplication.instance.sessionEngine.tick(network, config, credentials, ssid)
+                        return@launch
+                    }
                 }
 
                 KawaiiApplication.instance.sessionEngine.tick(network, config, credentials, ssid)
@@ -163,6 +166,32 @@ class KeepaliveForegroundService : Service() {
         val notification = buildNotification(state, uptimeSeconds)
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
         manager.notify(Constants.NOTIFICATION_ID, notification)
+
+        if (state is EngineState.SecurityHalted) {
+            notifySecurityAlert(state.reason)
+        }
+    }
+
+    private fun notifySecurityAlert(reason: String) {
+        val openIntent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+        val openPendingIntent = PendingIntent.getActivity(
+            this, 99, openIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val alertNotification = NotificationCompat.Builder(this, Constants.SECURITY_ALERT_CHANNEL_ID)
+            .setContentTitle("⚠️ Security Alert: Connection Halted")
+            .setContentText(reason)
+            .setStyle(NotificationCompat.BigTextStyle().bigText("Kawaii-Wify suspended automatic authentication to protect your credentials. Reason: $reason"))
+            .setSmallIcon(R.drawable.ic_stat_kawaii_wifi)
+            .setContentIntent(openPendingIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .build()
+
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+        manager.notify(Constants.SECURITY_NOTIFICATION_ID, alertNotification)
     }
 
     private fun buildNotification(state: EngineState, uptimeSeconds: Long): Notification {
@@ -233,6 +262,20 @@ class KeepaliveForegroundService : Service() {
                     R.drawable.wify_mascot_offline
                 )
             }
+            is EngineState.SecurityHalted -> {
+                Triple(
+                    "⚠️ Kawaii-Wify: Security Alert",
+                    "Halted: ${state.reason}",
+                    R.drawable.wify_mascot_offline
+                )
+            }
+            is EngineState.BlockedByWhitelist -> {
+                Triple(
+                    "Kawaii-Wify: Wi-Fi Not Permitted",
+                    "SSID '${state.currentSsid ?: "Unknown"}' is not whitelisted",
+                    R.drawable.wify_mascot_offline
+                )
+            }
             else -> {
                 Triple(
                     "Kawaii-Wify: Resting (ᴗ˳ᴗ)",
@@ -262,6 +305,9 @@ class KeepaliveForegroundService : Service() {
             is EngineState.Paused -> {
                 builder.addAction(android.R.drawable.ic_media_play, "Resume", resumePending)
                 builder.addAction(android.R.drawable.ic_menu_close_clear_cancel, "Disconnect", disconnectPending)
+            }
+            is EngineState.SecurityHalted -> {
+                builder.addAction(android.R.drawable.ic_menu_close_clear_cancel, "Dismiss", disconnectPending)
             }
             else -> {
                 builder.addAction(android.R.drawable.ic_media_play, "Connect", connectPending)

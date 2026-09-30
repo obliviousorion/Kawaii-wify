@@ -1,6 +1,7 @@
 package com.obliviousorion.kawaiiwify.data.auth
 
 import android.net.Network
+import android.net.Uri
 import com.obliviousorion.kawaiiwify.core.Constants
 import com.obliviousorion.kawaiiwify.core.LogLevel
 import com.obliviousorion.kawaiiwify.core.Logger
@@ -18,18 +19,55 @@ class FortiGateAuth {
     private val fgtAuthPattern = Pattern.compile("fgtauth\\?([a-f0-9]+)")
     private val keepalivePattern = Pattern.compile("keepalive\\?([a-f0-9]+)")
 
-    private fun buildClient(network: Network?, gatewayHost: String): OkHttpClient {
-        val trustManager = HostVerifier.createInsecureTrustManager()
+    private var pendingPin: String? = null
+    var onCommitPin: ((endpoint: String, pin: String) -> Unit)? = null
+
+    private fun buildClient(
+        network: Network?,
+        gatewayHost: String,
+        trustedPins: List<String> = emptyList(),
+        verifyTls: Boolean = true
+    ): OkHttpClient {
+        val trustManager = HostVerifier.createPinningTrustManager(
+            endpoint = gatewayHost,
+            trustedPins = trustedPins,
+            verifyTls = verifyTls,
+            onRecordPin = { fp ->
+                pendingPin = fp
+            }
+        )
         val sslSocketFactory = HostVerifier.createSSLSocketFactory(trustManager)
         val hostnameVerifier = HostVerifier.createHostnameVerifier(gatewayHost)
+
+        val cleanHost = gatewayHost.split(":").first().trim()
 
         val builder = OkHttpClient.Builder()
             .connectTimeout(8, TimeUnit.SECONDS)
             .readTimeout(8, TimeUnit.SECONDS)
             .writeTimeout(8, TimeUnit.SECONDS)
             .followRedirects(true)
+            .followSslRedirects(true)
             .sslSocketFactory(sslSocketFactory, trustManager)
             .hostnameVerifier(hostnameVerifier)
+            // Host-Restricted Redirect Interceptor: Prevents credential forwarding to untrusted domains
+            .addNetworkInterceptor { chain ->
+                val request = chain.request()
+                val response = chain.proceed(request)
+                if (response.isRedirect) {
+                    val location = response.header("Location")
+                    if (!location.isNullOrBlank()) {
+                        val uri = Uri.parse(location)
+                        val destHost = uri.host
+                        if (destHost != null &&
+                            !destHost.equals(cleanHost, ignoreCase = true) &&
+                            !destHost.equals("connectivitycheck.gstatic.com", ignoreCase = true)
+                        ) {
+                            throw SecurityException("Refusing redirect to untrusted foreign host: $destHost (expected $cleanHost)")
+                        }
+                    }
+                }
+                response
+            }
 
         // Bind directly to Network SocketFactory if provided (Solves Socket Routing Trap)
         if (network != null) {
@@ -39,72 +77,99 @@ class FortiGateAuth {
         return builder.build()
     }
 
-    suspend fun probe(network: Network?, gatewayHost: String = Constants.DEFAULT_GATEWAY): ProbeResult =
-        withContext(Dispatchers.IO) {
-            val client = buildClient(network, gatewayHost)
-            val request = Request.Builder()
-                .url(Constants.PROBE_URL)
-                .header("User-Agent", "Mozilla/5.0")
-                .get()
-                .build()
-
-            try {
-                client.newCall(request).execute().use { response ->
-                    if (response.code == 204) {
-                        Logger.log("NET", "Probe returned HTTP 204 (Online)", LogLevel.SUCCESS)
-                        return@withContext ProbeResult.Online
-                    }
-
-                    val body = response.body?.string() ?: ""
-                    val matcher = fgtAuthPattern.matcher(body)
-                    if (matcher.find()) {
-                        val magicToken = matcher.group(1) ?: ""
-                        Logger.log("NET", "Captive portal detected! Magic challenge: $magicToken", LogLevel.WARN)
-                        return@withContext ProbeResult.Captive(magicToken)
-                    }
-
-                    Logger.log("NET", "Probe intercepted but no FortiGate challenge found", LogLevel.WARN)
-                    return@withContext ProbeResult.Offline("No FortiGate magic challenge detected in response")
-                }
-            } catch (e: Exception) {
-                Logger.log("NET", "Probe failed: ${e.message}", LogLevel.ERROR)
-                return@withContext ProbeResult.Offline(e.message ?: "Network unreachable")
-            }
+    private fun commitPendingPin(endpoint: String) {
+        val pin = pendingPin
+        if (pin != null) {
+            pendingPin = null
+            onCommitPin?.invoke(endpoint, pin)
         }
+    }
 
-    suspend fun prime(network: Network?, gatewayHost: String, challengeToken: String): Result<Unit> =
-        withContext(Dispatchers.IO) {
-            val client = buildClient(network, gatewayHost)
-            val primeUrl = "https://$gatewayHost/fgtauth?$challengeToken"
+    suspend fun probe(
+        network: Network?,
+        gatewayHost: String = Constants.DEFAULT_GATEWAY,
+        trustedPins: List<String> = emptyList(),
+        verifyTls: Boolean = true
+    ): ProbeResult = withContext(Dispatchers.IO) {
+        val client = buildClient(network, gatewayHost, trustedPins, verifyTls)
+        val request = Request.Builder()
+            .url(Constants.PROBE_URL)
+            .header("User-Agent", "Mozilla/5.0")
+            .get()
+            .build()
 
-            val request = Request.Builder()
-                .url(primeUrl)
-                .header("User-Agent", "Mozilla/5.0")
-                .get()
-                .build()
-
-            try {
-                Logger.log("AUTH", "Priming challenge on FortiOS: $primeUrl", LogLevel.INFO)
-                client.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful && response.code != 302) {
-                        return@withContext Result.failure(IOException("Prime returned unexpected code: ${response.code}"))
-                    }
-                    return@withContext Result.success(Unit)
+        try {
+            client.newCall(request).execute().use { response ->
+                if (response.code == 204) {
+                    Logger.log("NET", "Probe returned HTTP 204 (Online)", LogLevel.SUCCESS)
+                    return@withContext ProbeResult.Online
                 }
-            } catch (e: Exception) {
-                Logger.log("AUTH", "Prime request failed: ${e.message}", LogLevel.ERROR)
-                return@withContext Result.failure(e)
+
+                val body = response.body?.string() ?: ""
+                val matcher = fgtAuthPattern.matcher(body)
+                if (matcher.find()) {
+                    val magicToken = matcher.group(1) ?: ""
+                    Logger.log("NET", "Captive portal detected! Magic challenge: $magicToken", LogLevel.WARN)
+                    return@withContext ProbeResult.Captive(magicToken)
+                }
+
+                Logger.log("SECURITY", "Probe intercepted by unknown portal without FortiGate challenge", LogLevel.WARN)
+                return@withContext ProbeResult.SecurityViolation(
+                    "Probe intercepted by unknown portal (unrecognized captive portal). Verification halted."
+                )
             }
+        } catch (e: Exception) {
+            if (isSecurityException(e)) {
+                Logger.log("SECURITY", "Security violation during probe: ${e.message}", LogLevel.ERROR)
+                return@withContext ProbeResult.SecurityViolation(e.message ?: "TLS Pin or Redirect Violation")
+            }
+            Logger.log("NET", "Probe failed: ${e.message}", LogLevel.ERROR)
+            return@withContext ProbeResult.Offline(e.message ?: "Network unreachable")
         }
+    }
+
+    suspend fun prime(
+        network: Network?,
+        gatewayHost: String,
+        challengeToken: String,
+        trustedPins: List<String> = emptyList(),
+        verifyTls: Boolean = true
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        val client = buildClient(network, gatewayHost, trustedPins, verifyTls)
+        val primeUrl = "https://$gatewayHost/fgtauth?$challengeToken"
+
+        val request = Request.Builder()
+            .url(primeUrl)
+            .header("User-Agent", "Mozilla/5.0")
+            .get()
+            .build()
+
+        try {
+            Logger.log("AUTH", "Priming challenge on FortiOS: $primeUrl", LogLevel.INFO)
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful && response.code != 302) {
+                    return@withContext Result.failure(IOException("Prime returned unexpected code: ${response.code}"))
+                }
+                // Once FortiOS returns valid prime response, commit TOFU pin
+                commitPendingPin(gatewayHost)
+                return@withContext Result.success(Unit)
+            }
+        } catch (e: Exception) {
+            Logger.log("AUTH", "Prime request failed: ${e.message}", LogLevel.ERROR)
+            return@withContext Result.failure(e)
+        }
+    }
 
     suspend fun login(
         network: Network?,
         gatewayHost: String,
         challengeToken: String,
         username: String,
-        password: String
+        password: String,
+        trustedPins: List<String> = emptyList(),
+        verifyTls: Boolean = true
     ): Result<String> = withContext(Dispatchers.IO) {
-        val client = buildClient(network, gatewayHost)
+        val client = buildClient(network, gatewayHost, trustedPins, verifyTls)
         val loginUrl = "https://$gatewayHost/"
         val primeUrl = "https://$gatewayHost/fgtauth?$challengeToken"
 
@@ -131,6 +196,8 @@ class FortiGateAuth {
                 if (matcher.find()) {
                     val sessionToken = matcher.group(1) ?: ""
                     Logger.log("AUTH", "Login successful! Session token: $sessionToken", LogLevel.SUCCESS)
+                    // Successfully authenticated with FortiOS -> commit TOFU pin
+                    commitPendingPin(gatewayHost)
                     return@withContext Result.success(sessionToken)
                 }
 
@@ -143,54 +210,77 @@ class FortiGateAuth {
         }
     }
 
-    suspend fun keepalive(network: Network?, gatewayHost: String, sessionToken: String): Result<Unit> =
-        withContext(Dispatchers.IO) {
-            val client = buildClient(network, gatewayHost)
-            val keepaliveUrl = "https://$gatewayHost/keepalive?$sessionToken"
+    suspend fun keepalive(
+        network: Network?,
+        gatewayHost: String,
+        sessionToken: String,
+        trustedPins: List<String> = emptyList(),
+        verifyTls: Boolean = true
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        val client = buildClient(network, gatewayHost, trustedPins, verifyTls)
+        val keepaliveUrl = "https://$gatewayHost/keepalive?$sessionToken"
 
-            val request = Request.Builder()
-                .url(keepaliveUrl)
-                .header("User-Agent", "Mozilla/5.0")
-                .get()
-                .build()
+        val request = Request.Builder()
+            .url(keepaliveUrl)
+            .header("User-Agent", "Mozilla/5.0")
+            .get()
+            .build()
 
-            try {
-                client.newCall(request).execute().use { response ->
-                    if (response.code == 200) {
-                        return@withContext Result.success(Unit)
-                    }
-                    Logger.log("AUTH", "Keepalive ping returned code ${response.code}", LogLevel.WARN)
-                    return@withContext Result.failure(IOException("Keepalive returned HTTP ${response.code}"))
+        try {
+            client.newCall(request).execute().use { response ->
+                if (response.code == 200) {
+                    return@withContext Result.success(Unit)
                 }
-            } catch (e: Exception) {
-                Logger.log("AUTH", "Keepalive ping error: ${e.message}", LogLevel.ERROR)
-                return@withContext Result.failure(e)
+                Logger.log("AUTH", "Keepalive ping returned code ${response.code}", LogLevel.WARN)
+                return@withContext Result.failure(IOException("Keepalive returned HTTP ${response.code}"))
             }
+        } catch (e: Exception) {
+            Logger.log("AUTH", "Keepalive ping error: ${e.message}", LogLevel.ERROR)
+            return@withContext Result.failure(e)
         }
+    }
 
-    suspend fun logout(network: Network?, gatewayHost: String, sessionToken: String): Result<Unit> =
-        withContext(Dispatchers.IO) {
-            val client = buildClient(network, gatewayHost)
-            val logoutUrl = "https://$gatewayHost/logout?$sessionToken"
+    suspend fun logout(
+        network: Network?,
+        gatewayHost: String,
+        sessionToken: String,
+        trustedPins: List<String> = emptyList(),
+        verifyTls: Boolean = true
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        val client = buildClient(network, gatewayHost, trustedPins, verifyTls)
+        val logoutUrl = "https://$gatewayHost/logout?$sessionToken"
 
-            val request = Request.Builder()
-                .url(logoutUrl)
-                .header("User-Agent", "Mozilla/5.0")
-                .get()
-                .build()
+        val request = Request.Builder()
+            .url(logoutUrl)
+            .header("User-Agent", "Mozilla/5.0")
+            .get()
+            .build()
 
-            try {
-                Logger.log("AUTH", "Terminating session on FortiOS ($logoutUrl)", LogLevel.INFO)
-                client.newCall(request).execute().use { response ->
-                    if (response.code == 200) {
-                        Logger.log("AUTH", "Session terminated successfully on gateway", LogLevel.SUCCESS)
-                        return@withContext Result.success(Unit)
-                    }
-                    return@withContext Result.failure(IOException("Logout failed with code: ${response.code}"))
+        try {
+            Logger.log("AUTH", "Terminating session on FortiOS ($logoutUrl)", LogLevel.INFO)
+            client.newCall(request).execute().use { response ->
+                if (response.code == 200) {
+                    Logger.log("AUTH", "Session terminated successfully on gateway", LogLevel.SUCCESS)
+                    return@withContext Result.success(Unit)
                 }
-            } catch (e: Exception) {
-                Logger.log("AUTH", "Logout failed: ${e.message}", LogLevel.ERROR)
-                return@withContext Result.failure(e)
+                return@withContext Result.failure(IOException("Logout failed with code: ${response.code}"))
             }
+        } catch (e: Exception) {
+            Logger.log("AUTH", "Logout failed: ${e.message}", LogLevel.ERROR)
+            return@withContext Result.failure(e)
         }
+    }
+
+    companion object {
+        fun isSecurityException(e: Throwable): Boolean {
+            var curr: Throwable? = e
+            while (curr != null) {
+                if (curr is HostVerifier.CertificatePinMismatchException || curr is SecurityException) {
+                    return true
+                }
+                curr = curr.cause
+            }
+            return false
+        }
+    }
 }

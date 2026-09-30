@@ -4,4 +4,5 @@ sealed interface ProbeResult {
     data object Online : ProbeResult
     data class Captive(val magicToken: String) : ProbeResult
     data class Offline(val reason: String) : ProbeResult
+    data class SecurityViolation(val reason: String) : ProbeResult
 }

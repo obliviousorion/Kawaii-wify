@@ -54,6 +54,82 @@ fun DashboardScreen(
         // Hero Mascot Banner (Modular slot)
         MascotBanner(state = telemetry.state)
 
+        // Security Alert Banner
+        if (telemetry.state is EngineState.SecurityHalted) {
+            val reason = (telemetry.state as EngineState.SecurityHalted).reason
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                color = CrimsonRed.copy(alpha = 0.15f),
+                border = BorderStroke(1.dp, CrimsonRed.copy(alpha = 0.8f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = CrimsonRed,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "SECURITY ALERT: Connection Halted",
+                            style = Typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = CrimsonRed
+                        )
+                    }
+                    Text(
+                        text = reason,
+                        style = Typography.bodySmall,
+                        color = TextPrimary
+                    )
+                    Text(
+                        text = "Authentication was suspended to protect credentials. If campus IT changed certificates, clear pins in Settings.",
+                        style = Typography.labelSmall,
+                        color = TextSecondary
+                    )
+                    Button(
+                        onClick = onConnectClick,
+                        colors = ButtonDefaults.buttonColors(containerColor = CrimsonRed),
+                        modifier = Modifier.align(Alignment.End),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Reset & Retry", color = androidx.compose.ui.graphics.Color.White)
+                    }
+                }
+            }
+        } else if (telemetry.state is EngineState.BlockedByWhitelist) {
+            val ssid = (telemetry.state as EngineState.BlockedByWhitelist).currentSsid ?: "Unknown"
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                color = WarningAmber.copy(alpha = 0.15f),
+                border = BorderStroke(1.dp, WarningAmber.copy(alpha = 0.8f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = WarningAmber,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Wi-Fi Whitelist Active",
+                            style = Typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = WarningAmber
+                        )
+                    }
+                    Text(
+                        text = "Connected to '$ssid', which is not in permitted Wi-Fi networks. Auto-login paused.",
+                        style = Typography.bodySmall,
+                        color = TextPrimary
+                    )
+                }
+            }
+        }
+
         // Main Action & Secondary Controls Container
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             // Main Glowing Button

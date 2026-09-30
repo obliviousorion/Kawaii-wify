@@ -7,4 +7,6 @@ sealed interface EngineState {
     data object Online : EngineState
     data object Paused : EngineState
     data class Cooldown(val remainingSeconds: Int) : EngineState
+    data class BlockedByWhitelist(val currentSsid: String?) : EngineState
+    data class SecurityHalted(val reason: String) : EngineState
 }

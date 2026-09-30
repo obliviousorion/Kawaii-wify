@@ -546,6 +546,34 @@ fun SettingsScreen(
                     style = Typography.bodyMedium.copy(color = TextMuted, fontSize = 12.sp)
                 )
 
+                // Enforce SSID Whitelist Switch
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Enforce SSID Whitelist", style = Typography.bodyLarge)
+                        Text(
+                            "Only authenticate if connected to an allowed Wi-Fi name (Requires Location permission)",
+                            style = Typography.bodyMedium.copy(color = TextSecondary, fontSize = 12.sp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Switch(
+                        checked = config.enforceSsidWhitelist,
+                        onCheckedChange = { checked ->
+                            coroutineScope.launch { prefManager.updateEnforceSsidWhitelist(checked) }
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = NeonLavender,
+                            checkedTrackColor = NeonLavender.copy(alpha = 0.4f)
+                        )
+                    )
+                }
+
+                HorizontalDivider(color = SurfaceBorder)
+
                 // Active SSID Chips
                 if (config.ssidWhitelist.isEmpty()) {
                     Text(
@@ -666,7 +694,122 @@ fun SettingsScreen(
         }
 
         // ==========================================
-        // 4. BATTERY OPTIMIZATION & BACKGROUND DOZE
+        // 4. GATEWAY TLS & CERTIFICATE PINNING SECTION
+        // ==========================================
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = SurfaceDark),
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, SurfaceBorder, RoundedCornerShape(20.dp))
+        ) {
+            Column(
+                modifier = Modifier.padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Lock,
+                        contentDescription = null,
+                        tint = MintGreen,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = "GATEWAY TLS & CERTIFICATE PINNING",
+                        style = Typography.labelSmall.copy(color = MintGreen, fontWeight = FontWeight.Bold)
+                    )
+                }
+
+                Text(
+                    text = "Protects against rogue access points and MITM interception by pinning the cryptographic SHA-256 fingerprint of your campus FortiGate certificate.",
+                    style = Typography.bodyMedium.copy(color = TextMuted, fontSize = 12.sp)
+                )
+
+                // Verify TLS Switch
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Enforce TLS Pinning", style = Typography.bodyLarge)
+                        Text(
+                            "Reject connections if presented certificate does not match trusted gateway fingerprint",
+                            style = Typography.bodyMedium.copy(color = TextSecondary, fontSize = 12.sp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Switch(
+                        checked = config.verifyTls,
+                        onCheckedChange = { checked ->
+                            coroutineScope.launch { prefManager.updateVerifyTls(checked) }
+                        },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MintGreen,
+                            checkedTrackColor = MintGreen.copy(alpha = 0.4f)
+                        )
+                    )
+                }
+
+                HorizontalDivider(color = SurfaceBorder)
+
+                // Stored Pins for Active Gateway
+                val currentPins = config.getPinsForGateway(config.gateway)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Trusted Fingerprints (${config.gateway}):",
+                        style = Typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold)
+                    )
+
+                    if (currentPins.isEmpty()) {
+                        Text(
+                            text = "No pins recorded yet. Kawaii-Wify will securely learn and pin the gateway certificate on your next connection (TOFU mode).",
+                            style = Typography.bodySmall.copy(color = TextSecondary)
+                        )
+                    } else {
+                        currentPins.forEach { pin ->
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = SurfaceGlass,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    text = pin,
+                                    modifier = Modifier.padding(8.dp),
+                                    style = Typography.labelSmall.copy(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 10.sp,
+                                        color = CyberCyan
+                                    )
+                                )
+                            }
+                        }
+
+                        Button(
+                            onClick = {
+                                coroutineScope.launch {
+                                    prefManager.clearCertPins(config.gateway)
+                                    Toast.makeText(context, "Pins cleared! Next login will re-learn gateway certificate.", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = AlertOrange.copy(alpha = 0.2f), contentColor = AlertOrange),
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, AlertOrange.copy(alpha = 0.5f))
+                        ) {
+                            Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Reset Gateway Trust Pins")
+                        }
+                    }
+                }
+            }
+        }
+
+        // ==========================================
+        // 5. BATTERY OPTIMIZATION & BACKGROUND DOZE
         // ==========================================
         Card(
             shape = RoundedCornerShape(20.dp),
