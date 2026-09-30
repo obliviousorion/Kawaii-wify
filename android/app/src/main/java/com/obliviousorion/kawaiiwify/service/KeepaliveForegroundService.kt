@@ -180,11 +180,14 @@ class KeepaliveForegroundService : Service() {
             this, 99, openIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
+        val avatar = BitmapFactory.decodeResource(resources, R.drawable.wify_mascot_security)
+
         val alertNotification = NotificationCompat.Builder(this, Constants.SECURITY_ALERT_CHANNEL_ID)
-            .setContentTitle("⚠️ Security Alert: Connection Halted")
+            .setContentTitle("Security Alert: Connection Halted")
             .setContentText(reason)
             .setStyle(NotificationCompat.BigTextStyle().bigText("Kawaii-Wify suspended automatic authentication to protect your credentials. Reason: $reason"))
             .setSmallIcon(R.drawable.ic_stat_kawaii_wifi)
+            .setLargeIcon(avatar)
             .setContentIntent(openPendingIntent)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
@@ -236,7 +239,7 @@ class KeepaliveForegroundService : Service() {
                 val mins = (uptimeSeconds % 3600) / 60
                 val secs = uptimeSeconds % 60
                 Triple(
-                    "Kawaii-Wify: Connection Online! (◕‿◕)✌",
+                    "Kawaii-Wify: Connection Online",
                     "Session active • Uptime %02d:%02d:%02d".format(hours, mins, secs),
                     R.drawable.wify_mascot_online
                 )
@@ -259,14 +262,14 @@ class KeepaliveForegroundService : Service() {
                 Triple(
                     "Kawaii-Wify: Circuit Breaker Cooldown",
                     "Pausing to protect account (${state.remainingSeconds}s remaining)",
-                    R.drawable.wify_mascot_offline
+                    R.drawable.wify_mascot_auth_failed
                 )
             }
             is EngineState.SecurityHalted -> {
                 Triple(
-                    "⚠️ Kawaii-Wify: Security Alert",
+                    "Kawaii-Wify: Security Alert",
                     "Halted: ${state.reason}",
-                    R.drawable.wify_mascot_offline
+                    R.drawable.wify_mascot_security
                 )
             }
             is EngineState.BlockedByWhitelist -> {
@@ -278,7 +281,7 @@ class KeepaliveForegroundService : Service() {
             }
             else -> {
                 Triple(
-                    "Kawaii-Wify: Resting (ᴗ˳ᴗ)",
+                    "Kawaii-Wify: Offline",
                     "Engine is offline or waiting for Wi-Fi",
                     R.drawable.wify_mascot_offline
                 )

@@ -1,12 +1,19 @@
 package com.obliviousorion.kawaiiwify.ui.screens
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.location.LocationManager
 import android.net.Uri
+import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -65,6 +72,37 @@ fun SettingsScreen(
     val powerManager = remember { context.getSystemService(Context.POWER_SERVICE) as PowerManager }
     var isBatteryExempt by remember {
         mutableStateOf(powerManager.isIgnoringBatteryOptimizations(context.packageName))
+    }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fineLocationGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+        if (fineLocationGranted) {
+            val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+            val isLocationEnabled = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                locationManager?.isLocationEnabled == true
+            } else {
+                locationManager?.isProviderEnabled(LocationManager.GPS_PROVIDER) == true ||
+                locationManager?.isProviderEnabled(LocationManager.NETWORK_PROVIDER) == true
+            }
+            if (!isLocationEnabled) {
+                Toast.makeText(
+                    context,
+                    "Please turn ON Location in Android Quick Settings so Kawaii-Wify can read the Wi-Fi name.",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+            coroutineScope.launch { prefManager.updateEnforceSsidWhitelist(true) }
+            Toast.makeText(context, "Wi-Fi Whitelist enabled.", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(
+                context,
+                "Precise Location permission is required by Android to read the connected Wi-Fi name.",
+                Toast.LENGTH_LONG
+            ).show()
+            coroutineScope.launch { prefManager.updateEnforceSsidWhitelist(false) }
+        }
     }
 
     // Confirmation Dialog for Purging Vault
@@ -563,7 +601,39 @@ fun SettingsScreen(
                     Switch(
                         checked = config.enforceSsidWhitelist,
                         onCheckedChange = { checked ->
-                            coroutineScope.launch { prefManager.updateEnforceSsidWhitelist(checked) }
+                            if (!checked) {
+                                coroutineScope.launch { prefManager.updateEnforceSsidWhitelist(false) }
+                            } else {
+                                val hasFineLocation = ContextCompat.checkSelfPermission(
+                                    context,
+                                    Manifest.permission.ACCESS_FINE_LOCATION
+                                ) == PackageManager.PERMISSION_GRANTED
+
+                                if (hasFineLocation) {
+                                    val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+                                    val isLocationEnabled = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                        locationManager?.isLocationEnabled == true
+                                    } else {
+                                        locationManager?.isProviderEnabled(LocationManager.GPS_PROVIDER) == true ||
+                                        locationManager?.isProviderEnabled(LocationManager.NETWORK_PROVIDER) == true
+                                    }
+                                    if (!isLocationEnabled) {
+                                        Toast.makeText(
+                                            context,
+                                            "Please turn ON Location in Android Quick Settings so Kawaii-Wify can read the Wi-Fi name.",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                    coroutineScope.launch { prefManager.updateEnforceSsidWhitelist(true) }
+                                } else {
+                                    locationPermissionLauncher.launch(
+                                        arrayOf(
+                                            Manifest.permission.ACCESS_FINE_LOCATION,
+                                            Manifest.permission.ACCESS_COARSE_LOCATION
+                                        )
+                                    )
+                                }
+                            }
                         },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = NeonLavender,
