@@ -43,6 +43,47 @@ class AppUpdateManager(
         }
 
         try {
+            // 1. Direct CDN Check via versions.json (Immune to GitHub API 60 req/hr rate limits)
+            val cdnReq = Request.Builder()
+                .url("https://github.com/obliviousorion/Kawaii-wify/releases/latest/download/versions.json")
+                .header("User-Agent", "Kawaii-Wify-Android/${BuildConfig.VERSION_NAME}")
+                .build()
+
+            val cdnResp = client.newCall(cdnReq).execute()
+            if (cdnResp.isSuccessful) {
+                val cdnBody = cdnResp.body?.string()
+                if (!cdnBody.isNullOrBlank()) {
+                    val mJson = JSONObject(cdnBody)
+                    val targetAndroidVersion = mJson.optString("android", "").trim().removePrefix("v")
+                    val releaseUrl = mJson.optString("release_url", "https://github.com/obliviousorion/Kawaii-wify/releases/latest")
+                    val apkName = mJson.optString("android_apk_name", "").trim()
+                    val apkUrl = "https://github.com/obliviousorion/Kawaii-wify/releases/latest/download/" +
+                            (if (apkName.isNotBlank()) apkName else "kawaii-wify-android.apk")
+
+                    val isNewer = targetAndroidVersion.isNotBlank() && isNewerSemver(targetAndroidVersion, BuildConfig.VERSION_NAME)
+                    prefManager.updateLastUpdateCheckTime(now)
+
+                    val info = if (isNewer) {
+                        UpdateInfo(
+                            hasUpdate = true,
+                            latestVersion = targetAndroidVersion,
+                            apkDownloadUrl = apkUrl,
+                            releasePageUrl = releaseUrl,
+                            releaseNotes = "A newer version of Kawaii-Wify ($targetAndroidVersion) is available on GitHub."
+                        )
+                    } else {
+                        UpdateInfo(hasUpdate = false)
+                    }
+                    _updateState.value = info
+                    return@withContext info
+                }
+            }
+        } catch (_: Exception) {
+            // If CDN is unavailable, fall through to REST API fallback below
+        }
+
+        try {
+            // 2. Fallback to GitHub REST API
             val req = Request.Builder()
                 .url("https://api.github.com/repos/obliviousorion/Kawaii-wify/releases/latest")
                 .header("User-Agent", "Kawaii-Wify-Android/${BuildConfig.VERSION_NAME}")

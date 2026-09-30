@@ -19,12 +19,21 @@ $latestTag = $null
 if ($isInstalled -and -not $Force) {
     try {
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-        $apiUrl = "https://api.github.com/repos/$repo/releases/latest"
-        $release = Invoke-RestMethod -Uri $apiUrl -UseBasicParsing -Headers @{ "User-Agent" = "kawaii-wify-installer" }
-        $latestTag = $release.tag_name
+        $manifestUrl = "https://github.com/$repo/releases/latest/download/versions.json"
+        $manifest = Invoke-RestMethod -Uri $manifestUrl -UseBasicParsing -Headers @{ "User-Agent" = "kawaii-wify-installer" }
+        if ($manifest.desktop) {
+            $latestTag = "v" + $manifest.desktop.ToString().Trim().TrimStart('v')
+        }
     } catch {
-        # If GitHub API is rate-limited or unreachable, proceed with download
-        $latestTag = $null
+        # Fallback to GitHub REST API if manifest fails
+        try {
+            $apiUrl = "https://api.github.com/repos/$repo/releases/latest"
+            $release = Invoke-RestMethod -Uri $apiUrl -UseBasicParsing -Headers @{ "User-Agent" = "kawaii-wify-installer" }
+            $latestTag = $release.tag_name
+        } catch {
+            # If GitHub API is rate-limited or unreachable, proceed with download
+            $latestTag = $null
+        }
     }
 
     if ($latestTag) {

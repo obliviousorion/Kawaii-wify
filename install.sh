@@ -64,7 +64,13 @@ fi
 
 # 1. Check for existing version vs latest release
 if [ -n "$INSTALLED_BIN" ] && [ -z "$FORCE" ]; then
-  LATEST_TAG=$(curl -fsSL https://api.github.com/repos/${REPO}/releases/latest 2>/dev/null | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' || true)
+  LATEST_VER=$(curl -fsSL "https://github.com/${REPO}/releases/latest/download/versions.json" 2>/dev/null | grep '"desktop":' | sed -E 's/[^0-9.]//g' || true)
+  if [ -n "$LATEST_VER" ]; then
+    LATEST_TAG="v${LATEST_VER}"
+  else
+    LATEST_TAG=$(curl -fsSL "https://api.github.com/repos/${REPO}/releases/latest" 2>/dev/null | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/' || true)
+  fi
+
   if [ -n "$LATEST_TAG" ]; then
     CURRENT_VER=$("$INSTALLED_BIN" --version 2>/dev/null || echo "")
     if echo "$CURRENT_VER" | grep -q "$LATEST_TAG"; then

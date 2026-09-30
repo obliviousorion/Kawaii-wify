@@ -61,6 +61,63 @@ func (c *Checker) CheckLatest(ctx context.Context) (*Release, bool, error) {
 		return nil, false, ErrDevVersion
 	}
 
+	// 1. Direct CDN Check via versions.json (Rate-Limit Immune)
+	// Fetching versions.json directly from GitHub CDN bypasses api.github.com's
+	// 60 req/hr unauthenticated IP rate limit, which is frequently exhausted on campus Wi-Fi.
+	if c.BaseURL == "" {
+		cdnURL := fmt.Sprintf("https://github.com/%s/%s/releases/latest/download/versions.json", c.RepoOwner, c.RepoName)
+		cdnReq, err := http.NewRequestWithContext(ctx, http.MethodGet, cdnURL, nil)
+		if err == nil {
+			cdnReq.Header.Set("User-Agent", "Kawaii-Wify/"+c.CurrentVersion)
+			if cdnResp, err := c.HTTPClient.Do(cdnReq); err == nil && cdnResp.StatusCode == http.StatusOK {
+				var manifest VersionManifest
+				decErr := json.NewDecoder(cdnResp.Body).Decode(&manifest)
+				cdnResp.Body.Close()
+				if decErr == nil {
+					if manifest.Desktop == "" {
+						return &Release{TagName: "v" + curr}, false, nil
+					}
+					latestDesktop := strings.TrimSpace(strings.TrimPrefix(manifest.Desktop, "v"))
+					tagName := "v" + latestDesktop
+					rel := &Release{
+						TagName: tagName,
+						Name:    tagName,
+						HTMLURL: fmt.Sprintf("https://github.com/%s/%s/releases/tag/%s", c.RepoOwner, c.RepoName, tagName),
+						Assets: []Asset{
+							{
+								Name:               "kawaii-wify-windows-amd64.exe",
+								BrowserDownloadURL: fmt.Sprintf("https://github.com/%s/%s/releases/download/%s/kawaii-wify-windows-amd64.exe", c.RepoOwner, c.RepoName, tagName),
+							},
+							{
+								Name:               "kawaii-wify-linux-amd64",
+								BrowserDownloadURL: fmt.Sprintf("https://github.com/%s/%s/releases/download/%s/kawaii-wify-linux-amd64", c.RepoOwner, c.RepoName, tagName),
+							},
+							{
+								Name:               "kawaii-wify-linux-arm64",
+								BrowserDownloadURL: fmt.Sprintf("https://github.com/%s/%s/releases/download/%s/kawaii-wify-linux-arm64", c.RepoOwner, c.RepoName, tagName),
+							},
+							{
+								Name:               "kawaii-wify-darwin-amd64",
+								BrowserDownloadURL: fmt.Sprintf("https://github.com/%s/%s/releases/download/%s/kawaii-wify-darwin-amd64", c.RepoOwner, c.RepoName, tagName),
+							},
+							{
+								Name:               "kawaii-wify-darwin-arm64",
+								BrowserDownloadURL: fmt.Sprintf("https://github.com/%s/%s/releases/download/%s/kawaii-wify-darwin-arm64", c.RepoOwner, c.RepoName, tagName),
+							},
+						},
+					}
+					if t, err := time.Parse(time.RFC3339, manifest.PublishedAt); err == nil {
+						rel.PublishedAt = t
+					}
+					return rel, isNewerSemver(latestDesktop, curr), nil
+				}
+			} else if cdnResp != nil {
+				cdnResp.Body.Close()
+			}
+		}
+	}
+
+	// 2. Fallback to GitHub REST API (used if custom BaseURL is set for tests or CDN download fails)
 	url := c.BaseURL
 	if url == "" {
 		url = fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", c.RepoOwner, c.RepoName)
