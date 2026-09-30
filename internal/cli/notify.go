@@ -122,17 +122,21 @@ func runNotifyTest(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	var title, msg string
+	var title, msg, hint, actionURL string
 	switch category {
 	case notify.CategorySecurity:
 		title = "Kawaii-Wify: Security Alert"
 		msg = "Gateway certificate mismatch detected. Auto-login halted for safety."
+		hint = "Run 'kawaii-wify config clear-pins'"
 	case notify.CategoryAuthFailed:
 		title = "Kawaii-Wify: Login Failed"
 		msg = "Campus firewall rejected credentials. Please update your credentials."
+		hint = "Run 'kawaii-wify login'"
 	case notify.CategoryUpdate:
 		title = "Kawaii-Wify: Update Available"
-		msg = "Version v0.x.0 is out with security enhancements and improvements!"
+		msg = "Version v0.2.0 is out with security enhancements and improvements!"
+		hint = "Run 'kawaii-wify update' (or click to view changelog)"
+		actionURL = "https://github.com/obliviousorion/Kawaii-wify/releases"
 	case notify.CategoryOnline:
 		title = "Kawaii-Wify: Connected"
 		msg = "Connection to campus network established."
@@ -144,9 +148,11 @@ func runNotifyTest(cmd *cobra.Command, args []string) {
 	fmt.Printf("Dispatching test notification [%s]...\n", category)
 	notifier := notify.NewNotifier()
 	if err := notifier.Send(notify.Notification{
-		Title:    title,
-		Message:  msg,
-		Category: category,
+		Title:      title,
+		Message:    msg,
+		Category:   category,
+		ActionHint: hint,
+		ActionURL:  actionURL,
 	}); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to send notification: %v\n", err)
 		os.Exit(1)

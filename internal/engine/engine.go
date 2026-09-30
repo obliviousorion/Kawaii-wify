@@ -413,15 +413,22 @@ func (e *Engine) updateLastProbe() {
 func notifySecurityHalt(err error) {
 	title := "Kawaii-Wify: Security Alert"
 	msg := "Campus gateway certificate changed or potential MITM detected. Auto-login halted for safety."
+	hint := "Run 'kawaii-wify config clear-pins'"
+	actionURL := ""
+
 	if errors.Is(err, auth.ErrForeignPortalDetected) || errors.Is(err, auth.ErrRedirectToForeignHost) {
 		title = "Kawaii-Wify: Foreign Portal Detected"
 		msg = "Unrecognized captive portal detected. Auto-login skipped to avoid leaking campus credentials."
+		hint = "Click to open login portal in browser"
+		actionURL = "http://connectivitycheck.gstatic.com/generate_204"
 	}
 	go func() {
 		_ = notify.Send(notify.Notification{
-			Title:    title,
-			Message:  msg,
-			Category: notify.CategorySecurity,
+			Title:      title,
+			Message:    msg,
+			Category:   notify.CategorySecurity,
+			ActionHint: hint,
+			ActionURL:  actionURL,
 		})
 	}()
 }
@@ -429,9 +436,10 @@ func notifySecurityHalt(err error) {
 func notifyAuthFailed() {
 	go func() {
 		_ = notify.Send(notify.Notification{
-			Title:    "Kawaii-Wify: Login Failed",
-			Message:  "Campus firewall rejected credentials. Your campus password may have expired.",
-			Category: notify.CategoryAuthFailed,
+			Title:      "Kawaii-Wify: Login Failed",
+			Message:    "Campus firewall rejected credentials. Your campus password may have expired.",
+			Category:   notify.CategoryAuthFailed,
+			ActionHint: "Run 'kawaii-wify login'",
 		})
 	}()
 }
