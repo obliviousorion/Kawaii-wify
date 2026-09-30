@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -14,11 +15,23 @@ var (
 	ErrDevVersion = errors.New("cannot check updates for development builds")
 )
 
+type Asset struct {
+	Name               string `json:"name"`
+	BrowserDownloadURL string `json:"browser_download_url"`
+}
+
 type Release struct {
 	TagName     string    `json:"tag_name"`
 	Name        string    `json:"name"`
 	HTMLURL     string    `json:"html_url"`
 	PublishedAt time.Time `json:"published_at"`
+	Assets      []Asset   `json:"assets"`
+}
+
+type VersionManifest struct {
+	Desktop     string `json:"desktop"`
+	Android     string `json:"android"`
+	PublishedAt string `json:"published_at"`
 }
 
 type Checker struct {
@@ -26,6 +39,7 @@ type Checker struct {
 	RepoName       string
 	CurrentVersion string
 	HTTPClient     *http.Client
+	BaseURL        string // Optional override for testing
 }
 
 func NewChecker(currentVersion string) *Checker {
@@ -38,6 +52,8 @@ func NewChecker(currentVersion string) *Checker {
 }
 
 // CheckLatest checks GitHub releases for a newer version than CurrentVersion.
+// It prioritizes checking versions.json attached to the release assets. If only Android
+// was bumped in versions.json, Desktop remains silent.
 // Returns (release, isNewer, error).
 func (c *Checker) CheckLatest(ctx context.Context) (*Release, bool, error) {
 	curr := strings.TrimPrefix(c.CurrentVersion, "v")
@@ -45,7 +61,11 @@ func (c *Checker) CheckLatest(ctx context.Context) (*Release, bool, error) {
 		return nil, false, ErrDevVersion
 	}
 
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", c.RepoOwner, c.RepoName)
+	url := c.BaseURL
+	if url == "" {
+		url = fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", c.RepoOwner, c.RepoName)
+	}
+
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to create update request: %w", err)
@@ -68,16 +88,80 @@ func (c *Checker) CheckLatest(ctx context.Context) (*Release, bool, error) {
 		return nil, false, fmt.Errorf("failed to parse release JSON: %w", err)
 	}
 
-	latest := strings.TrimPrefix(rel.TagName, "v")
+	// 1. Try to check versions.json in release assets
+	for _, asset := range rel.Assets {
+		if asset.Name == "versions.json" && asset.BrowserDownloadURL != "" {
+			manifestReq, err := http.NewRequestWithContext(ctx, http.MethodGet, asset.BrowserDownloadURL, nil)
+			if err == nil {
+				manifestReq.Header.Set("User-Agent", "Kawaii-Wify/"+c.CurrentVersion)
+				if mResp, err := c.HTTPClient.Do(manifestReq); err == nil {
+					if mResp.StatusCode == http.StatusOK {
+						var manifest VersionManifest
+						decErr := json.NewDecoder(mResp.Body).Decode(&manifest)
+						mResp.Body.Close()
+						if decErr == nil {
+							if manifest.Desktop != "" {
+								latestDesktop := strings.TrimSpace(strings.TrimPrefix(manifest.Desktop, "v"))
+								return &rel, isNewerSemver(latestDesktop, curr), nil
+							}
+							// Manifest is present but desktop version is omitted or empty (e.g. android-only release).
+							// Desktop must NOT update.
+							return &rel, false, nil
+						}
+					} else {
+						mResp.Body.Close()
+					}
+				}
+			}
+		}
+	}
+
+	// 2. Fallback to release.TagName if versions.json is not attached
+	latest := strings.TrimSpace(strings.TrimPrefix(rel.TagName, "v"))
 	if latest == "" {
 		return nil, false, nil
 	}
 
-	if latest != curr {
-		return &rel, true, nil
+	return &rel, isNewerSemver(latest, curr), nil
+}
+
+// isNewerSemver compares two semver strings (e.g. "0.2.1" vs "0.2.0").
+// Returns true if remote is strictly greater than local.
+// Strips pre-release labels (e.g. "0.2.1-rc1" -> "0.2.1") and trims whitespace.
+func isNewerSemver(remote, local string) bool {
+	remote = strings.TrimSpace(strings.TrimPrefix(remote, "v"))
+	local = strings.TrimSpace(strings.TrimPrefix(local, "v"))
+
+	cleanPart := func(p string) string {
+		if idx := strings.IndexAny(p, "-+"); idx != -1 {
+			return p[:idx]
+		}
+		return p
 	}
 
-	return &rel, false, nil
+	rParts := strings.Split(remote, ".")
+	lParts := strings.Split(local, ".")
+
+	for i := 0; i < len(rParts) && i < len(lParts); i++ {
+		rNum, rErr := strconv.Atoi(cleanPart(rParts[i]))
+		lNum, lErr := strconv.Atoi(cleanPart(lParts[i]))
+		if rErr == nil && lErr == nil {
+			if rNum > lNum {
+				return true
+			}
+			if rNum < lNum {
+				return false
+			}
+		} else {
+			if rParts[i] > lParts[i] {
+				return true
+			}
+			if rParts[i] < lParts[i] {
+				return false
+			}
+		}
+	}
+	return len(rParts) > len(lParts)
 }
 
 // StartBackgroundChecker launches a non-blocking background routine that checks
@@ -91,7 +175,7 @@ func StartBackgroundChecker(ctx context.Context, currentVersion string, interval
 	checker := NewChecker(currentVersion)
 
 	go func() {
-		// Wait 1 minute after launch before performing initial check
+		// Wait 2 minutes after launch before performing initial check
 		select {
 		case <-ctx.Done():
 			return

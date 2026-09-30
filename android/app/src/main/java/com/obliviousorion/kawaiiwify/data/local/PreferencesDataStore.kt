@@ -7,6 +7,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.obliviousorion.kawaiiwify.core.Constants
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.io.IOException
 
@@ -132,6 +133,24 @@ class PreferencesManager(private val context: Context) {
         }
     }
 
+    suspend fun getLastUpdateCheckTime(): Long {
+        val prefs = context.dataStore.data.first()
+        return prefs[KEY_LAST_UPDATE_CHECK_TIME] ?: 0L
+    }
+
+    suspend fun updateLastUpdateCheckTime(timestamp: Long) {
+        context.dataStore.edit { it[KEY_LAST_UPDATE_CHECK_TIME] = timestamp }
+    }
+
+    suspend fun getLastNotifiedUpdateVersion(): String {
+        val prefs = context.dataStore.data.first()
+        return prefs[KEY_LAST_NOTIFIED_UPDATE_VERSION] ?: ""
+    }
+
+    suspend fun updateLastNotifiedUpdateVersion(version: String) {
+        context.dataStore.edit { it[KEY_LAST_NOTIFIED_UPDATE_VERSION] = version }
+    }
+
     companion object {
         private val KEY_GATEWAY = stringPreferencesKey("gateway_endpoint")
         private val KEY_INTERVAL = intPreferencesKey("check_interval_seconds")
@@ -142,5 +161,7 @@ class PreferencesManager(private val context: Context) {
         private val KEY_SKIP_HOST = booleanPreferencesKey("skip_host_mismatch")
         private val KEY_VERIFY_TLS = booleanPreferencesKey("verify_tls_enabled")
         private val KEY_CERT_PINS_SET = stringSetPreferencesKey("cert_pins_set")
+        private val KEY_LAST_UPDATE_CHECK_TIME = longPreferencesKey("last_update_check_time")
+        private val KEY_LAST_NOTIFIED_UPDATE_VERSION = stringPreferencesKey("last_notified_update_version")
     }
 }

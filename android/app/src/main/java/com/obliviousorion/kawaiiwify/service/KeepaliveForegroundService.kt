@@ -12,6 +12,7 @@ import android.net.NetworkRequest
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
 import com.obliviousorion.kawaiiwify.KawaiiApplication
 import com.obliviousorion.kawaiiwify.R
@@ -27,6 +28,7 @@ class KeepaliveForegroundService : Service() {
 
     private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var loopJob: Job? = null
+    private var updateJob: Job? = null
 
     private lateinit var connectivityManager: ConnectivityManager
     private lateinit var networkCallback: CaptivePortalCallback
@@ -63,6 +65,7 @@ class KeepaliveForegroundService : Service() {
         startForegroundNotification()
         observeTelemetry()
         startDaemonLoop()
+        startPeriodicUpdateCheck()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -197,6 +200,61 @@ class KeepaliveForegroundService : Service() {
         manager.notify(Constants.SECURITY_NOTIFICATION_ID, alertNotification)
     }
 
+    private fun startPeriodicUpdateCheck() {
+        updateJob?.cancel()
+        updateJob = serviceScope.launch {
+            // Initial 30-second delay so critical Wi-Fi keepalive starts uninterrupted
+            delay(30_000L)
+            while (isActive) {
+                try {
+                    val updateManager = KawaiiApplication.instance.updateManager
+                    val updateInfo = updateManager.checkForUpdates(force = false)
+                    if (updateInfo.hasUpdate && updateManager.shouldNotifyUpdate(updateInfo)) {
+                        notifyUpdateAvailable(updateInfo.latestVersion)
+                        updateManager.markUpdateNotified(updateInfo.latestVersion)
+                    }
+                } catch (e: Exception) {
+                    Logger.log("UPDATE", "Periodic update check encountered error: ${e.message}", LogLevel.DEBUG)
+                }
+                // Check once every 24 hours
+                delay(24 * 60 * 60 * 1000L)
+            }
+        }
+    }
+
+    private fun notifyUpdateAvailable(version: String) {
+        try {
+            if (!NotificationManagerCompat.from(this).areNotificationsEnabled()) {
+                return
+            }
+            val openIntent = Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                putExtra(Constants.EXTRA_OPEN_UPDATE_DIALOG, true)
+            }
+            val openPendingIntent = PendingIntent.getActivity(
+                this, 100, openIntent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+            )
+
+            val avatar = BitmapFactory.decodeResource(resources, R.drawable.wify_mascot_update)
+
+            val notification = NotificationCompat.Builder(this, Constants.UPDATE_ALERT_CHANNEL_ID)
+                .setContentTitle("Kawaii-Wify: Update Available")
+                .setContentText("Version v$version is available. Tap to view.")
+                .setStyle(NotificationCompat.BigTextStyle().bigText("Version v$version is available with security enhancements and improvements. Tap to view or download."))
+                .setSmallIcon(R.drawable.ic_stat_kawaii_wifi)
+                .setLargeIcon(avatar)
+                .setContentIntent(openPendingIntent)
+                .setAutoCancel(true)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .build()
+
+            val manager = getSystemService(Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            manager.notify(Constants.UPDATE_NOTIFICATION_ID, notification)
+        } catch (e: Exception) {
+            Logger.log("UPDATE", "Failed to dispatch update notification: ${e.message}", LogLevel.WARN)
+        }
+    }
+
     private fun buildNotification(state: EngineState, uptimeSeconds: Long): Notification {
         val openIntent = Intent(this, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -327,6 +385,7 @@ class KeepaliveForegroundService : Service() {
             connectivityManager.unregisterNetworkCallback(networkCallback)
         } catch (_: Exception) {}
         loopJob?.cancel()
+        updateJob?.cancel()
         serviceScope.cancel()
     }
 

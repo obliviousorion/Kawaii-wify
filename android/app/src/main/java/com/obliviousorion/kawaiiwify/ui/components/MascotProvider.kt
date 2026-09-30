@@ -71,7 +71,7 @@ object DefaultKawaiiWifyProvider : MascotThemeProvider {
             is EngineState.BlockedByWhitelist -> MascotVisualState(
                 drawableRes = R.drawable.wify_mascot_offline,
                 statusTitle = "WI-FI NOT PERMITTED",
-                statusQuote = "\"SSID '${state.currentSsid ?: "Unknown"}' is not in permitted whitelist.\"",
+                statusQuote = "\"SSID '${state.currentSsid ?: "Unknown"}' is not in permitted whitelist. (ᴗ˳ᴗ)\"",
                 auraColor = WarningAmber,
                 badgeText = "GATED",
                 badgeColor = WarningAmber

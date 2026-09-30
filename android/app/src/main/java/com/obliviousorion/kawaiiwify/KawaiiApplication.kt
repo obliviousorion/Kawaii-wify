@@ -10,6 +10,7 @@ import com.obliviousorion.kawaiiwify.core.Logger
 import com.obliviousorion.kawaiiwify.data.local.PreferencesManager
 import com.obliviousorion.kawaiiwify.data.local.SecurityManager
 import com.obliviousorion.kawaiiwify.domain.SessionEngine
+import com.obliviousorion.kawaiiwify.data.updater.AppUpdateManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -25,6 +26,9 @@ class KawaiiApplication : Application() {
     lateinit var sessionEngine: SessionEngine
         private set
 
+    lateinit var updateManager: AppUpdateManager
+        private set
+
     override fun onCreate() {
         super.onCreate()
         instance = this
@@ -33,6 +37,7 @@ class KawaiiApplication : Application() {
         securityManager = SecurityManager(this)
         preferencesManager = PreferencesManager(this)
         sessionEngine = SessionEngine()
+        updateManager = AppUpdateManager(this, preferencesManager)
 
         // Persist TOFU certificate pins when authentic gateway proves identity
         sessionEngine.auth.onCommitPin = { endpoint, pin ->
@@ -69,8 +74,19 @@ class KawaiiApplication : Application() {
                 setShowBadge(true)
             }
 
+            // Software update notifications
+            val updateChannel = NotificationChannel(
+                Constants.UPDATE_ALERT_CHANNEL_ID,
+                "Software Updates",
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "Notifications when newer releases of Kawaii-Wify are available"
+                setShowBadge(true)
+            }
+
             manager.createNotificationChannel(statusChannel)
             manager.createNotificationChannel(securityChannel)
+            manager.createNotificationChannel(updateChannel)
         }
     }
 

@@ -84,14 +84,16 @@ jobs:
           fi
           chmod +x gradlew
           ./gradlew assembleRelease
+          ANDROID_VER=$(grep -E 'versionName\s*=\s*' app/build.gradle.kts | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
           mkdir -p ../dist
+          cp app/build/outputs/apk/release/app-release.apk "../dist/kawaii-wify-android-v${ANDROID_VER}.apk"
           cp app/build/outputs/apk/release/app-release.apk ../dist/kawaii-wify-android.apk
 
       - name: Upload Android Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kawaii-wify-android.apk
-          path: dist/kawaii-wify-android.apk
+          name: android-apk
+          path: dist/kawaii-wify-android*.apk
 
   publish-release:
     name: Publish GitHub Release
@@ -106,6 +108,23 @@ jobs:
         with:
           path: dist/
           merge-multiple: true
+
+      - name: Generate Cross-Platform versions.json Manifest
+        run: |
+          ANDROID_VER=$(grep -E 'versionName\s*=\s*' android/app/build.gradle.kts | head -n 1 | sed -E 's/.*"([^"]+)".*/\1/')
+          DESKTOP_VER=$(echo "${{ github.ref_name }}" | sed 's/^v//')
+          APK_NAME="kawaii-wify-android-v${ANDROID_VER}.apk"
+          cat <<EOF > dist/versions.json
+          {
+            "desktop": "${DESKTOP_VER}",
+            "android": "${ANDROID_VER}",
+            "published_at": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')",
+            "android_apk_name": "${APK_NAME}",
+            "release_url": "https://github.com/obliviousorion/Kawaii-wify/releases/tag/${{ github.ref_name }}"
+          }
+          EOF
+          echo "Generated versions.json:"
+          cat dist/versions.json
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

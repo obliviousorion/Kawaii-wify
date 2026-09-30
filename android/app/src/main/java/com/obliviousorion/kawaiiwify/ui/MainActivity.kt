@@ -39,8 +39,14 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { _ -> }
 
+    private var openUpdateDialogRequested by mutableStateOf(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        if (intent?.getBooleanExtra(Constants.EXTRA_OPEN_UPDATE_DIALOG, false) == true) {
+            openUpdateDialogRequested = true
+        }
 
         checkAppPermissions()
         // Automatically start the foreground service on app launch
@@ -49,6 +55,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             KawaiiWifyTheme {
                 MainAppHost(
+                    openUpdateDialog = openUpdateDialogRequested,
+                    onDismissUpdateDialog = { openUpdateDialogRequested = false },
                     onConnect = {
                         val intent = Intent(this, KeepaliveForegroundService::class.java).apply {
                             action = Constants.ACTION_CONNECT
@@ -78,6 +86,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra(Constants.EXTRA_OPEN_UPDATE_DIALOG, false)) {
+            openUpdateDialogRequested = true
+        }
+    }
+
     private fun checkAppPermissions() {
         val permissions = mutableListOf<String>()
 
@@ -104,6 +120,8 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun MainAppHost(
+    openUpdateDialog: Boolean = false,
+    onDismissUpdateDialog: () -> Unit = {},
     onConnect: () -> Unit,
     onDisconnect: () -> Unit,
     onPause: () -> Unit,
@@ -140,7 +158,7 @@ fun MainAppHost(
                             )
                         },
                         colors = NavigationBarItemDefaults.colors(
-                            indicatorColor = SurfaceGlass
+                             indicatorColor = SurfaceGlass
                         )
                     )
                 }
@@ -151,6 +169,8 @@ fun MainAppHost(
         when (selectedItem) {
             is NavItem.Dashboard -> DashboardScreen(
                 engine = KawaiiApplication.instance.sessionEngine,
+                openUpdateDialog = openUpdateDialog,
+                onDismissUpdateDialog = onDismissUpdateDialog,
                 onConnectClick = onConnect,
                 onDisconnectClick = onDisconnect,
                 onPauseClick = onPause,
