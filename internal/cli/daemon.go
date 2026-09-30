@@ -63,7 +63,6 @@ func runDaemon(cmd *cobra.Command, args []string) {
 		cfg.Gateway = gatewayOverride
 	}
 	gatewayEndpoint := cfg.GatewayEndpoint()
-	gatewayHost := cfg.GatewayHost()
 
 	keepalive := cfg.Keepalive
 	if cmd.Flags().Changed("no-keepalive") {
@@ -92,7 +91,8 @@ func runDaemon(cmd *cobra.Command, args []string) {
 	}
 	defer listener.Close()
 
-	gw := auth.NewGateway(gatewayEndpoint, gatewayHost)
+	cfg.Gateway = gatewayEndpoint
+	gw := auth.NewGatewayWithConfig(cfg)
 	eng := engine.New(gw, user, pass, keepalive, autoConnect)
 
 	go func() {

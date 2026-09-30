@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 
+	"github.com/obliviousorion/kawaii-wify/internal/config"
 	"github.com/obliviousorion/kawaii-wify/internal/ipc"
 	"github.com/spf13/cobra"
 )
@@ -57,11 +59,35 @@ func runStatus(cmd *cobra.Command, args []string) {
 		sessionTokenStr = "None"
 	}
 
+	if strings.Contains(status.State, "Security Halted") {
+		fmt.Println("======================================================================")
+		fmt.Println(" [!] SECURITY ALERT: Daemon halted due to security violation!")
+		fmt.Println("     Automatic login was suspended to prevent credential theft.")
+		fmt.Println("     Check Wi-Fi network or run 'kawaii-wify config clear-pins'")
+		fmt.Println("     if campus IT recently renewed their certificate.")
+		fmt.Println("======================================================================")
+		fmt.Println()
+	}
+
+	cfg, _ := config.Load()
+	pinStatus := "TOFU (Trust On First Use)"
+	if cfg != nil {
+		if !cfg.IsTLSVerificationEnabled() {
+			pinStatus = "Disabled (verify_tls = false)"
+		} else {
+			pins := cfg.GetPins(cfg.GatewayEndpoint())
+			if len(pins) > 0 {
+				pinStatus = fmt.Sprintf("Pinned (%d fingerprint(s))", len(pins))
+			}
+		}
+	}
+
 	fmt.Println("kawaii-wify Daemon Status")
 	fmt.Println("─────────────────────────")
 	fmt.Printf("  State:         %s\n", status.State)
 	fmt.Printf("  User:          %s\n", status.Username)
 	fmt.Printf("  Paused:        %t\n", status.Paused)
+	fmt.Printf("  TLS Pinning:   %s\n", pinStatus)
 	fmt.Printf("  Uptime:        %s\n", status.Uptime)
 	fmt.Printf("  Last Probe:    %s\n", lastProbeStr)
 	fmt.Printf("  Session:       %s\n", sessionTokenStr)

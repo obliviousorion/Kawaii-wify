@@ -15,6 +15,9 @@ const (
 
 	// StateCooldown indicates consecutive failures; logins paused to prevent lockout.
 	StateCooldown
+
+	// StateSecurityHalted indicates a security violation (certificate mismatch, foreign portal, or untrusted redirect). Polling is suspended.
+	StateSecurityHalted
 )
 
 // String returns a human-readable label for logs and UI status.
@@ -28,6 +31,8 @@ func (s State) String() string {
 		return "Online"
 	case StateCooldown:
 		return "Cooldown (Suspended)"
+	case StateSecurityHalted:
+		return "Security Halted (Manual Verification Required)"
 	default:
 		return "Unknown"
 	}

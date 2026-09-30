@@ -106,6 +106,17 @@ func (e *Engine) tick(ctx context.Context) error {
 
 	isCaptive, magicToken, err := e.gateway.Probe(ctx)
 	if err != nil {
+		if errors.Is(err, auth.ErrFingerprintMismatch) ||
+			errors.Is(err, auth.ErrForeignPortalDetected) ||
+			errors.Is(err, auth.ErrRedirectToForeignHost) {
+			logger.Error("SECURITY ALERT: %v - auto-connect suspended to protect credentials", err)
+			e.mu.Lock()
+			e.paused = true
+			e.mu.Unlock()
+			e.transition(StateSecurityHalted, err.Error())
+			return err
+		}
+
 		if e.State() != StateOffline {
 			logger.Net("Network unreachable, transitioning to offline: %v", err)
 			e.transition(StateOffline, "Unreachable")
@@ -137,6 +148,14 @@ func (e *Engine) tick(ctx context.Context) error {
 		}
 
 		if err := e.gateway.Prime(ctx, magicToken); err != nil {
+			if errors.Is(err, auth.ErrFingerprintMismatch) || errors.Is(err, auth.ErrRedirectToForeignHost) {
+				logger.Error("SECURITY ALERT during priming: %v - auto-connect suspended", err)
+				e.mu.Lock()
+				e.paused = true
+				e.mu.Unlock()
+				e.transition(StateSecurityHalted, err.Error())
+				return err
+			}
 			logger.Warn("Gateway priming failed, will retry on next tick: %v", err)
 			return err
 		}
@@ -144,6 +163,14 @@ func (e *Engine) tick(ctx context.Context) error {
 
 		sessionToken, err := e.gateway.Login(ctx, e.username, e.password, magicToken)
 		if err != nil {
+			if errors.Is(err, auth.ErrFingerprintMismatch) || errors.Is(err, auth.ErrRedirectToForeignHost) {
+				logger.Error("SECURITY ALERT during login: %v - auto-connect suspended", err)
+				e.mu.Lock()
+				e.paused = true
+				e.mu.Unlock()
+				e.transition(StateSecurityHalted, err.Error())
+				return err
+			}
 			currentFails := e.incrementFailures()
 			logger.Error("Login failed (attempt %d/%d): %v", currentFails, MaxAuthFailures, err)
 			if currentFails >= MaxAuthFailures {
@@ -170,7 +197,7 @@ func (e *Engine) Connect(timeout time.Duration) error {
     e.mu.Lock()
     e.paused = false
     e.failCount = 0
-    if e.state == StateCooldown {
+    if e.state == StateCooldown || e.state == StateSecurityHalted {
         e.transitionLocked(StateOffline)
     }
     e.mu.Unlock()

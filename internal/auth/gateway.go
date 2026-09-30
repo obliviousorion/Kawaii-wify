@@ -8,6 +8,9 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"sync"
+
+	"github.com/obliviousorion/kawaii-wify/internal/config"
 )
 
 // Pre-compiled regex singletons (allocated once at package init)
@@ -16,20 +19,74 @@ var (
 	reKeepalive = regexp.MustCompile(`keepalive\?([a-f0-9]+)`)
 )
 
-// Gateway encapsulates FortiOS captive portal communication, endpoint addresses, and HTTP transport.
-type Gateway struct {
-	endpoint string       // e.g. "fw.bits-pilani.ac.in:8090"
-	host     string       // e.g. "fw.bits-pilani.ac.in"
-	client   *http.Client
+// GatewayOptions configures a Gateway instance with security options.
+type GatewayOptions struct {
+	Endpoint    string
+	Host        string
+	GetPins     func(endpoint string) []string
+	CommitPin   func(endpoint, fingerprint string) error
+	VerifyTLS   bool
 }
 
-// NewGateway creates a Gateway instance configured for a specific endpoint and TLS host.
+// Gateway encapsulates FortiOS captive portal communication, endpoint addresses, and HTTP transport.
+type Gateway struct {
+	endpoint    string // e.g. "fw.bits-pilani.ac.in:8090"
+	host        string // e.g. "fw.bits-pilani.ac.in"
+	client      *http.Client
+	pendingPin  string
+	mu          sync.Mutex
+	commitPinFn func(endpoint, fingerprint string) error
+}
+
+// NewGateway creates a Gateway instance configured for a specific endpoint and TLS host with default security.
 func NewGateway(endpoint, host string) *Gateway {
-	return &Gateway{
-		endpoint: endpoint,
-		host:     host,
-		client:   NewClient(host),
+	return NewGatewayWithOptions(GatewayOptions{
+		Endpoint:  endpoint,
+		Host:      host,
+		VerifyTLS: true,
+	})
+}
+
+// NewGatewayWithConfig initializes a Gateway fully wired with config persistence for TOFU pinning.
+func NewGatewayWithConfig(cfg *config.Config) *Gateway {
+	endpoint := cfg.GatewayEndpoint()
+	host := cfg.GatewayHost()
+
+	return NewGatewayWithOptions(GatewayOptions{
+		Endpoint: endpoint,
+		Host:     host,
+		GetPins: func(ep string) []string {
+			return cfg.GetPins(ep)
+		},
+		CommitPin: func(ep, fp string) error {
+			cfg.AddPin(ep, fp)
+			return config.Save(cfg)
+		},
+		VerifyTLS: cfg.IsTLSVerificationEnabled(),
+	})
+}
+
+// NewGatewayWithOptions creates a Gateway instance with explicit security and pin options.
+func NewGatewayWithOptions(opts GatewayOptions) *Gateway {
+	gw := &Gateway{
+		endpoint:    opts.Endpoint,
+		host:        opts.Host,
+		commitPinFn: opts.CommitPin,
 	}
+
+	gw.client = NewClientWithOptions(ClientOptions{
+		TargetEndpoint: opts.Endpoint,
+		TargetHost:     opts.Host,
+		GetPins:        opts.GetPins,
+		OnRecordPin: func(fingerprint string) {
+			gw.mu.Lock()
+			gw.pendingPin = fingerprint
+			gw.mu.Unlock()
+		},
+		VerifyTLS: opts.VerifyTLS,
+	})
+
+	return gw
 }
 
 // Endpoint returns the host:port address of the FortiOS captive portal.
@@ -62,6 +119,18 @@ func (g *Gateway) LogoutURL(sessionToken string) string {
 	return fmt.Sprintf("https://%s/logout?%s", g.endpoint, sessionToken)
 }
 
+// commitPendingPin persists a TOFU certificate pin once the gateway has proved authentic.
+func (g *Gateway) commitPendingPin() {
+	g.mu.Lock()
+	pin := g.pendingPin
+	g.pendingPin = ""
+	g.mu.Unlock()
+
+	if pin != "" && g.commitPinFn != nil {
+		_ = g.commitPinFn(g.endpoint, pin)
+	}
+}
+
 // Probe checks whether we have WAN access or are trapped in a captive portal.
 // Returns isCaptive = true and challengeToken if intercepted.
 // Returns isCaptive = false and challengeToken = "" if already online (204).
@@ -88,7 +157,7 @@ func (g *Gateway) Probe(ctx context.Context) (isCaptive bool, challengeToken str
 
 	matches := reFgtAuth.FindStringSubmatch(string(body))
 	if len(matches) < 2 {
-		return false, "", fmt.Errorf("failed to extract magic token from portal HTML")
+		return false, "", fmt.Errorf("%w: response does not contain FortiGate challenge token", ErrForeignPortalDetected)
 	}
 
 	return true, matches[1], nil
@@ -109,6 +178,10 @@ func (g *Gateway) Prime(ctx context.Context, challengeToken string) error {
 		return err
 	}
 	defer resp.Body.Close()
+
+	// Once prime request completes successfully on FortiOS, commit pending TOFU pin
+	g.commitPendingPin()
+
 	return nil
 }
 
@@ -144,6 +217,9 @@ func (g *Gateway) Login(ctx context.Context, username, password, challengeToken 
 	if len(sessionMatches) < 2 {
 		return "", fmt.Errorf("authentication failed: invalid credentials or session rejected (no keepalive token in response)")
 	}
+
+	// Gateway successfully authenticated and returned session token -> commit pending pin
+	g.commitPendingPin()
 
 	return sessionMatches[1], nil
 }

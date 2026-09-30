@@ -13,19 +13,24 @@ import (
 const DefaultGateway = "fw.bits-pilani.ac.in:8090"
 
 type Config struct {
-	Username      string `json:"username"`
-	Gateway       string `json:"gateway,omitempty"`
-	CheckInterval string `json:"check_interval"`
-	Keepalive     bool   `json:"keepalive"`
-	AutoConnect   bool   `json:"auto_connect"`
+	Username      string              `json:"username"`
+	Gateway       string              `json:"gateway,omitempty"`
+	CheckInterval string              `json:"check_interval"`
+	Keepalive     bool                `json:"keepalive"`
+	AutoConnect   bool                `json:"auto_connect"`
+	CertPins      map[string][]string `json:"cert_pins,omitempty"` // "endpoint": ["SHA256:..."]
+	VerifyTLS     *bool               `json:"verify_tls,omitempty"` // nil or true = verify, false = bypass
 }
 
 func Default() *Config {
+	verify := true
 	return &Config{
 		Gateway:       DefaultGateway,
 		CheckInterval: "10s",
 		Keepalive:     true,
 		AutoConnect:   true,
+		CertPins:      make(map[string][]string),
+		VerifyTLS:     &verify,
 	}
 }
 
@@ -54,6 +59,43 @@ func (c *Config) GatewayHost() string {
 		return endpoint
 	}
 	return host
+}
+
+// GetPins returns the list of trusted certificate SHA-256 fingerprints for an endpoint.
+func (c *Config) GetPins(endpoint string) []string {
+	if c.CertPins == nil {
+		return nil
+	}
+	return c.CertPins[endpoint]
+}
+
+// AddPin registers a trusted SHA-256 fingerprint for a gateway endpoint.
+func (c *Config) AddPin(endpoint, fingerprint string) {
+	if c.CertPins == nil {
+		c.CertPins = make(map[string][]string)
+	}
+	for _, fp := range c.CertPins[endpoint] {
+		if strings.EqualFold(fp, fingerprint) {
+			return
+		}
+	}
+	c.CertPins[endpoint] = append(c.CertPins[endpoint], fingerprint)
+}
+
+// ClearPins removes all stored certificate pins for a given endpoint.
+func (c *Config) ClearPins(endpoint string) {
+	if c.CertPins == nil {
+		return
+	}
+	delete(c.CertPins, endpoint)
+}
+
+// IsTLSVerificationEnabled returns whether TLS certificate & pin validation is enforced.
+func (c *Config) IsTLSVerificationEnabled() bool {
+	if c.VerifyTLS == nil {
+		return true
+	}
+	return *c.VerifyTLS
 }
 
 func Load() (*Config, error) {

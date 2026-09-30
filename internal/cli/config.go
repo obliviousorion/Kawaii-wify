@@ -11,12 +11,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// written by ai
-
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "View and manage local settings",
-	Long:  "View and update non-sensitive configuration settings such as check interval, keepalive, and default username.",
+	Long:  "View and update non-sensitive configuration settings such as check interval, keepalive, default username, and TLS certificate pins.",
 }
 
 var configGetCmd = &cobra.Command{
@@ -33,6 +31,13 @@ var configSetCmd = &cobra.Command{
 	Run:   runConfigSet,
 }
 
+var configClearPinsCmd = &cobra.Command{
+	Use:   "clear-pins [endpoint]",
+	Short: "Clear stored TLS certificate pins for a gateway (or default gateway)",
+	Args:  cobra.MaximumNArgs(1),
+	Run:   runConfigClearPins,
+}
+
 func runConfigGet(cmd *cobra.Command, args []string) {
 	cfg, err := config.Load()
 	if err != nil {
@@ -46,6 +51,16 @@ func runConfigGet(cmd *cobra.Command, args []string) {
 		fmt.Printf("check_interval: %s\n", cfg.CheckInterval)
 		fmt.Printf("keepalive: %t\n", cfg.Keepalive)
 		fmt.Printf("auto_connect: %t\n", cfg.AutoConnect)
+		fmt.Printf("verify_tls: %t\n", cfg.IsTLSVerificationEnabled())
+		pins := cfg.GetPins(cfg.GatewayEndpoint())
+		if len(pins) > 0 {
+			fmt.Printf("cert_pins (%s): %d stored\n", cfg.GatewayEndpoint(), len(pins))
+			for _, p := range pins {
+				fmt.Printf("  - %s\n", p)
+			}
+		} else {
+			fmt.Printf("cert_pins (%s): None (TOFU mode)\n", cfg.GatewayEndpoint())
+		}
 		return
 	}
 
@@ -61,8 +76,20 @@ func runConfigGet(cmd *cobra.Command, args []string) {
 		fmt.Println(cfg.Keepalive)
 	case "auto_connect", "autoconnect":
 		fmt.Println(cfg.AutoConnect)
+	case "verify_tls", "verifytls":
+		fmt.Println(cfg.IsTLSVerificationEnabled())
+	case "cert_pins", "pins":
+		endpoint := cfg.GatewayEndpoint()
+		pins := cfg.GetPins(endpoint)
+		if len(pins) == 0 {
+			fmt.Printf("No certificate pins recorded for %s (TOFU mode)\n", endpoint)
+		} else {
+			for _, p := range pins {
+				fmt.Println(p)
+			}
+		}
 	default:
-		log.Fatalf("[ERROR] Unknown configuration key '%s'. Supported keys: username, gateway, check_interval, keepalive, auto_connect", args[0])
+		log.Fatalf("[ERROR] Unknown configuration key '%s'. Supported keys: username, gateway, check_interval, keepalive, auto_connect, verify_tls, cert_pins", args[0])
 	}
 }
 
@@ -109,8 +136,14 @@ func runConfigSet(cmd *cobra.Command, args []string) {
 			log.Fatalf("[ERROR] Invalid boolean value '%s'. Use 'true' or 'false'.", val)
 		}
 		cfg.AutoConnect = b
+	case "verify_tls", "verifytls":
+		b, err := strconv.ParseBool(val)
+		if err != nil {
+			log.Fatalf("[ERROR] Invalid boolean value '%s'. Use 'true' or 'false'.", val)
+		}
+		cfg.VerifyTLS = &b
 	default:
-		log.Fatalf("[ERROR] Unknown configuration key '%s'. Supported keys: username, gateway, check_interval, keepalive, auto_connect", args[0])
+		log.Fatalf("[ERROR] Unknown configuration key '%s'. Supported keys: username, gateway, check_interval, keepalive, auto_connect, verify_tls", args[0])
 	}
 
 	if err := config.Save(cfg); err != nil {
@@ -120,8 +153,36 @@ func runConfigSet(cmd *cobra.Command, args []string) {
 	log.Printf("[SUCCESS] Configuration updated: %s = %s", key, val)
 }
 
+func runConfigClearPins(cmd *cobra.Command, args []string) {
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("[ERROR] Failed to load config: %v", err)
+	}
+
+	target := cfg.GatewayEndpoint()
+	if len(args) > 0 {
+		target = args[0]
+	}
+
+	if strings.EqualFold(target, "all") {
+		cfg.CertPins = make(map[string][]string)
+		if err := config.Save(cfg); err != nil {
+			log.Fatalf("[ERROR] Failed to save config: %v", err)
+		}
+		fmt.Println("✓ Cleared all stored certificate pins.")
+		return
+	}
+
+	cfg.ClearPins(target)
+	if err := config.Save(cfg); err != nil {
+		log.Fatalf("[ERROR] Failed to save config: %v", err)
+	}
+	fmt.Printf("✓ Cleared certificate pins for %s. Next connection will re-pin in TOFU mode.\n", target)
+}
+
 func init() {
 	configCmd.AddCommand(configGetCmd)
 	configCmd.AddCommand(configSetCmd)
+	configCmd.AddCommand(configClearPinsCmd)
 	rootCmd.AddCommand(configCmd)
 }
