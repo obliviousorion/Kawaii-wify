@@ -45,6 +45,27 @@ irm https://raw.githubusercontent.com/obliviousorion/Kawaii-wify/main/install.ps
   2. Move it to `%LOCALAPPDATA%\kawaii-wify\kawaii-wify.exe`.
   3. Add `%LOCALAPPDATA%\kawaii-wify` to your User `PATH` environment variable.
 
+### Updating
+
+Updating Kawaii-Wify is as simple as re-running the automated installation command:
+
+**Linux / macOS:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/obliviousorion/Kawaii-wify/main/install.sh | bash
+```
+
+**Windows (PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/obliviousorion/Kawaii-wify/main/install.ps1 | iex
+```
+
+> [!TIP]
+> **Smart Updates with Zero Downtime:**
+> - The install script automatically checks your installed version against the latest GitHub Release. If you are already up to date, it notifies you and exits cleanly.
+> - If an active `kawaii-wify` daemon is running, the script safely stops it, replaces the binary (preventing Windows file-locking errors), and restarts the daemon automatically.
+> - Your saved credentials, configuration, and autostart settings are 100% preserved.
+> - **Android Users**: Download and install the new release APK directly over your existing installation. In-place updates work seamlessly because official releases use a consistent signing key.
+
 ---
 
 ## How It Works
